@@ -6,7 +6,7 @@
 import json
 import os
 
-CONFIG_PATH = os.path.join(os.path.expanduser("~"), "Documents", "CutScreenLibrary", "config.json")
+CONFIG_PATH = os.path.join(os.path.expanduser("~"), "Documents", "ScreenCutLibrary", "config.json")
 
 def load_config():
     if os.path.exists(CONFIG_PATH):

@@ -13,7 +13,7 @@ class MainWindow(QMainWindow):
     def __init__(self, library_dir):
         super().__init__()
         self.library_dir = library_dir
-        self.setWindowTitle("CutScreen Capture")
+        self.setWindowTitle("ScreenCut Capture")
         self.setFixedSize(420, 250)
         
         # Make window frameless
@@ -151,6 +151,7 @@ class MainWindow(QMainWindow):
         self.add_setting_row(settings_layout, "Copy to Clipboard", toggles_config.get("Copy to Clipboard", True))
         self.add_setting_row(settings_layout, "Capture Cursor", toggles_config.get("Capture Cursor", False))
         self.add_setting_row(settings_layout, "5 Second Delay", toggles_config.get("5 Second Delay", False))
+        self.add_setting_row(settings_layout, "Scroll Capture", toggles_config.get("Scroll Capture", False))
         
         settings_layout.addStretch()
         layout.addLayout(settings_layout, stretch=2)
@@ -210,6 +211,9 @@ class MainWindow(QMainWindow):
         delay_toggle = self.toggles.get("5 Second Delay", None)
         has_delay = delay_toggle.isChecked() if delay_toggle else False
         
+        scroll_toggle = self.toggles.get("Scroll Capture", None)
+        self._is_scroll = scroll_toggle.isChecked() if scroll_toggle else False
+        
         if has_delay:
             self.countdown = CountdownWindow(5)
             self.countdown.finished.connect(self._do_overlay)
@@ -219,7 +223,7 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(200, self._do_overlay)
         
     def _do_overlay(self):
-        self.overlay = OverlayWindow(self.library_dir, self._has_cursor)
+        self.overlay = OverlayWindow(self.library_dir, self._has_cursor, self._is_scroll)
         self.overlay.show()
         self.overlay.activateWindow()
         self.overlay.raise_()

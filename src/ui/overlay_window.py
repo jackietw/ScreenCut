@@ -68,9 +68,10 @@ class OverlayWindow(QWidget):
         DRAWING = 1
         ADJUSTING = 2
 
-    def __init__(self, library_dir, capture_cursor=False):
+    def __init__(self, library_dir, capture_cursor=False, is_scroll=False):
         super().__init__()
         self.library_dir = library_dir
+        self.is_scroll = is_scroll
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -155,19 +156,6 @@ class OverlayWindow(QWidget):
         
         self.is_mouse_down = False
         self.current_mouse_pos = QPoint(-1000, -1000)
-
-        # Load last selection
-        from config import load_config
-        config_data = load_config()
-        last_sel = config_data.get("last_selection")
-        if last_sel and last_sel.get("width", 0) > 0 and last_sel.get("height", 0) > 0:
-            rect = QRect(last_sel["x"], last_sel["y"], last_sel["width"], last_sel["height"])
-            if self.rect().intersects(rect):
-                self.selected_rect = rect
-                self.state = self.State.ADJUSTING
-                self.update_handles()
-                from PySide6.QtCore import QTimer
-                QTimer.singleShot(50, self.update_toolbar_pos)
 
     def _draw_cursor_on_bg(self):
         from PySide6.QtGui import QPainterPath, QBrush, QColor, QPen, QPainter
@@ -502,10 +490,15 @@ class OverlayWindow(QWidget):
                     self.selected_rect = QRect(self.start_point, self.end_point).normalized()
                 
                 if not self.selected_rect.isEmpty():
-                    self.state = self.State.ADJUSTING
-                    self.update_handles()
-                    self.update_toolbar_pos()
-                    self.setCursor(Qt.CursorShape.ArrowCursor)
+                    if hasattr(self, 'is_scroll') and self.is_scroll:
+                        from PySide6.QtCore import QTimer
+                        # Use singleShot to allow mouse grab to be released properly
+                        QTimer.singleShot(0, self.on_done)
+                    else:
+                        self.state = self.State.ADJUSTING
+                        self.update_handles()
+                        self.update_toolbar_pos()
+                        self.setCursor(Qt.CursorShape.ArrowCursor)
                 else:
                     self.state = self.State.SNAPPING
                 self.update()
@@ -516,16 +509,6 @@ class OverlayWindow(QWidget):
 
     def on_done(self):
         rect = self.selected_rect
-        if not rect.isEmpty():
-            from config import load_config, save_config
-            config_data = load_config()
-            config_data["last_selection"] = {
-                "x": rect.x(),
-                "y": rect.y(),
-                "width": rect.width(),
-                "height": rect.height()
-            }
-            save_config(config_data)
             
         self.toolbar.hide()
         self.close()
@@ -537,19 +520,26 @@ class OverlayWindow(QWidget):
                               int(rect.top() * self.ratio), 
                               int(rect.width() * self.ratio), 
                               int(rect.height() * self.ratio))
-            cropped_image = self.bg_image.copy(phys_rect)
             
-            # Reset device pixel ratio on the cropped image before saving so it saves at full physical resolution
-            cropped_image.setDevicePixelRatio(1.0)
+            if hasattr(self, 'is_scroll') and self.is_scroll:
+                from core.scroll_capture import ScrollCaptureManager
+                self.scroll_manager = ScrollCaptureManager(phys_rect, self.library_dir)
+                self.scroll_manager.show()
+            else:
+                cropped_image = self.bg_image.copy(phys_rect)
             
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
-            filename = f"Capture_{timestamp}.png"
-            filepath = os.path.join(self.library_dir, filename)
-            cropped_image.save(filepath, "PNG")
-            
-            clipboard = QApplication.clipboard()
-            clipboard.setImage(cropped_image)
-            print(f"Captured: {filepath} and copied to clipboard.")
+            if not (hasattr(self, 'is_scroll') and self.is_scroll):
+                # Reset device pixel ratio on the cropped image before saving so it saves at full physical resolution
+                cropped_image.setDevicePixelRatio(1.0)
+                
+                timestamp = time.strftime("%Y%m%d_%H%M%S")
+                filename = f"Capture_{timestamp}.png"
+                filepath = os.path.join(self.library_dir, filename)
+                cropped_image.save(filepath, "PNG")
+                
+                clipboard = QApplication.clipboard()
+                clipboard.setImage(cropped_image)
+                print(f"Captured: {filepath} and copied to clipboard.")
                 
     def on_cancel(self):
         self.toolbar.hide()
