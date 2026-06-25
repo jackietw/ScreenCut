@@ -47,11 +47,11 @@ class HotkeyLabel(QLabel):
         
     def update_style(self, valid=True, listening=False):
         if listening:
-            self.setStyleSheet("color: #FF0000; font-size: 13px; margin-top: 5px;")
+            self.setStyleSheet("color: #E7D7A4; font-size: 13px; margin-top: 5px;")
         elif not valid:
             self.setStyleSheet("color: #FF0000; font-size: 13px; margin-top: 5px;")
         else:
-            self.setStyleSheet("color: #006400; font-size: 13px; margin-top: 5px;")
+            self.setStyleSheet("color: #DDF1DDAC; font-size: 13px; margin-top: 5px;")
             
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:

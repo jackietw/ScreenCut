@@ -77,6 +77,17 @@ class MainWindow(QMainWindow):
                 background: #d32f2f;
                 color: white;
             }
+            #AboutButton {
+                background: transparent;
+                color: #aaaaaa;
+                font-weight: bold;
+                font-size: 16px;
+                border: none;
+            }
+            #AboutButton:hover {
+                background: #555555;
+                color: white;
+            }
         """)
 
         central_widget = QWidget()
@@ -86,25 +97,22 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(1, 1, 1, 1) # Small margin for border
         main_layout.setSpacing(0)
         
+        from ui.icon_utils import create_svg_icon, SVG_TAB_IMAGE, SVG_TAB_VIDEO
+        
         # Tabs at the top
         self.tabs = QTabWidget()
-        
-        # Auto Tab (TBD)
-        # tab_auto = QWidget()
-        # tab_auto_layout = QVBoxLayout(tab_auto)
-        # tab_auto_layout.addWidget(QLabel("Auto Mode detects content intelligently."))
-        # self.tabs.addTab(tab_auto, "Auto")
+        self.tabs.setObjectName("MainTabs")
         
         # Image Tab
         tab_image = QWidget()
         self.toggles = {}
         self.setup_image_tab(tab_image)
-        self.tabs.addTab(tab_image, "Image")
+        self.tabs.addTab(tab_image, create_svg_icon(SVG_TAB_IMAGE), "Image")
         
         # Video Tab
         tab_video = QWidget()
         self.setup_video_tab(tab_video)
-        self.tabs.addTab(tab_video, "Video")
+        self.tabs.addTab(tab_video, create_svg_icon(SVG_TAB_VIDEO), "Video")
         
         self.tabs.setCurrentIndex(0)
         main_layout.addWidget(self.tabs)
@@ -139,14 +147,25 @@ class MainWindow(QMainWindow):
         
         main_layout.addWidget(bottom_bar)
         
+        from ui.icon_utils import SVG_CLOSE, SVG_ABOUT
         # Absolute positioned close button
-        self.close_btn = QPushButton("✕", central_widget)
+        self.close_btn = QPushButton("", central_widget)
+        self.close_btn.setIcon(create_svg_icon(SVG_CLOSE))
         self.close_btn.setObjectName("CloseButton")
         self.close_btn.setFixedSize(30, 30)
         self.close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.close_btn.clicked.connect(self.hide)
         self.close_btn.move(self.width() - 31, 1)
         self.close_btn.raise_()
+        
+        self.about_btn = QPushButton("", central_widget)
+        self.about_btn.setIcon(create_svg_icon(SVG_ABOUT))
+        self.about_btn.setObjectName("AboutButton")
+        self.about_btn.setFixedSize(30, 30)
+        self.about_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.about_btn.clicked.connect(self.show_about)
+        self.about_btn.move(self.width() - 61, 1)
+        self.about_btn.raise_()
         
         self.overlay = None
         self.HOTKEY_VIDEO_ID = 1
@@ -157,6 +176,10 @@ class MainWindow(QMainWindow):
         from ui.preferences_window import PreferencesWindow
         prefs = PreferencesWindow(self)
         prefs.exec()
+
+    def show_about(self):
+        from PySide6.QtWidgets import QMessageBox
+        QMessageBox.about(self, "About ScreenCut", "ScreenCut - A simple and fast screen capture tool.\n\nVersion: 1.0.0\nLicense: LGPL-2.0-or-later")
 
     def setup_video_tab(self, tab):
         from config import load_config
