@@ -7,6 +7,7 @@ import threading
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame
 from PySide6.QtCore import Qt, QTimer, QRect, QRectF
 from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QLinearGradient
+from ui.icon_utils import SVG_MOUSE, SVG_MIC, SVG_SYS_AUDIO
 
 # -------------------------------------------------------------------
 # VU Meter bar widget
@@ -155,7 +156,7 @@ class ReadyToRecordPanel(QWidget):
         cursor_right_col.setContentsMargins(0, 0, 0, 0)
         
         cursor_row = self._make_row(
-            svg_path="M13 1.07V9h7c0-4.08-3.05-7.44-7-7.93zM4 15c0 4.42 3.58 8 8 8s8-3.58 8-8v-4H4v4zm7-13.93C7.05 1.56 4 4.92 4 9h7V1.07z",
+            full_svg_xml=SVG_MOUSE,
             label_text="Cursor",
             label_extra_layout=cursor_col,
             right_widgets=[cursor_right_widget]
@@ -178,20 +179,46 @@ class ReadyToRecordPanel(QWidget):
         self.lbl_audio_on.setStyleSheet("color: #4caf50; font-size: 13px; font-weight: 700;")
         
         mic_row = self._make_row(
-            svg_path="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z",
+            full_svg_xml=SVG_MIC,
             label_text="Microphone",
             label_extra_layout=mic_col,
             right_widgets=[self.lbl_audio_on]
         )
         card_layout.addLayout(mic_row)
+        card_layout.addSpacing(14)
+
+        #  System Audio Row 
+        sys_col = QVBoxLayout()
+        sys_col.setSpacing(4)
+        self.lbl_sys_device = QLabel("Default Output")
+        self.lbl_sys_device.setStyleSheet("color: #888888; font-size: 11px;")
+        sys_col.addWidget(self.lbl_sys_device)
+
+        self.lbl_sys_audio_on = QLabel()
+        self.lbl_sys_audio_on.setStyleSheet("color: #4caf50; font-size: 13px; font-weight: 700;")
+
+        sys_row = self._make_row(
+            full_svg_xml=SVG_SYS_AUDIO,
+            label_text="System Audio",
+            label_extra_layout=sys_col,
+            right_widgets=[self.lbl_sys_audio_on]
+        )
+        card_layout.addLayout(sys_row)
 
         main_layout.addWidget(self.card)
 
-        # Init display
-        self.update_cursor_status(True)
-        self.update_audio_status(True)
+        # Init display from config
+        from config import load_config
+        cfg = load_config()
+        toggles_cfg = cfg.get("toggles", {})
+        init_mic = toggles_cfg.get("Record Microphone", True)
+        init_sys = toggles_cfg.get("Record System Audio", True)
 
-    def _make_row(self, svg_path, label_text, right_widgets, label_extra_layout=None):
+        self.update_cursor_status(True)
+        self.update_audio_status(init_mic)
+        self.update_sys_audio_status(init_sys)
+
+    def _make_row(self, full_svg_xml, label_text, right_widgets, label_extra_layout=None):
         """Build one status row: [svg icon] [label (+ sub-layout)] ... [right widgets]"""
         from PySide6.QtSvg import QSvgRenderer
         from PySide6.QtGui import QPixmap, QPainter
@@ -202,13 +229,8 @@ class ReadyToRecordPanel(QWidget):
         row.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         # Icon
-        svg_xml = (
-            f'<svg xmlns="http://www.w3.org/2000/svg" height="24px" '
-            f'viewBox="0 0 24 24" width="24px" fill="#CCCCCC">'
-            f'<path d="M0 0h24v24H0z" fill="none"/>'
-            f'<path d="{svg_path}"/></svg>'
-        )
-        renderer = QSvgRenderer(QByteArray(svg_xml.encode()))
+        colored_svg = full_svg_xml.replace('#FFFFFF', '#CCCCCC')
+        renderer = QSvgRenderer(QByteArray(colored_svg.encode('utf-8')))
         pix = QPixmap(24, 24)
         pix.fill(Qt.GlobalColor.transparent)
         p = QPainter(pix)
@@ -266,6 +288,15 @@ class ReadyToRecordPanel(QWidget):
             self.lbl_audio_on.setStyleSheet("color: #cccccc; font-size: 13px; font-weight: 500;")
             self._stop_audio_monitor()
             self.vu.set_level(0)
+
+    def update_sys_audio_status(self, is_on: bool):
+        self._is_sys_audio_on = is_on
+        if is_on:
+            self.lbl_sys_audio_on.setText("ON")
+            self.lbl_sys_audio_on.setStyleSheet("color: #4caf50; font-size: 13px; font-weight: 700;")
+        else:
+            self.lbl_sys_audio_on.setText("OFF")
+            self.lbl_sys_audio_on.setStyleSheet("color: #cccccc; font-size: 13px; font-weight: 500;")
 
     def set_audio_device_name(self, name: str):
         self.lbl_mic_device.setText(name[:30] if name else "System Default")

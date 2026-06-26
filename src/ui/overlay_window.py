@@ -3,77 +3,15 @@
 * SPDX-License-Identifier: LGPL-2.0-or-later
 '''
 
-from PySide6.QtWidgets import QWidget, QApplication, QPushButton, QHBoxLayout, QVBoxLayout, QLabel
-from PySide6.QtCore import Qt, QRect, QPoint, QSize, Signal
-from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QImage, QCursor, QShortcut, QKeySequence, QFontMetrics, QFont
+from PySide6.QtWidgets import QWidget, QApplication
+from PySide6.QtCore import Qt, QRect, QPoint, Signal
+from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QImage, QCursor, QShortcut, QKeySequence, QFont
 import mss
-import os
-import time
-import sys
-import ctypes
 from platforms import Platform
 from ui.ready_to_record_panel import ReadyToRecordPanel
-from ui.video_toolbar import VideoToolbar
+from ui.toolbar import VideoToolbar, FloatingToolbar
 
 # Windows-only: DWM extended frame info
-if sys.platform == "win32":
-    try:
-        from ctypes import wintypes as _wintypes
-        _dwmapi = ctypes.windll.dwmapi
-        _DWMWA_EXTENDED_FRAME_BOUNDS = 9
-        _DWMWA_CLOAKED = 14
-    except Exception:
-        _dwmapi = None
-else:
-    _dwmapi = None
-
-class FloatingToolbar(QWidget):
-    def __init__(self, parent, on_done, on_cancel):
-        super().__init__(parent)
-        self.setWindowFlags(Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        
-        # Exclude from screen capture
-        Platform.set_window_capture_excluded(int(self.winId()))
-        
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(5, 5, 5, 5)
-        
-        bg = QWidget()
-        bg.setObjectName("bg_widget")
-        bg.setStyleSheet("#bg_widget { background-color: #2b2b2b; border: 1px solid #555555; border-radius: 6px; }")
-        bg_layout = QHBoxLayout(bg)
-        bg_layout.setContentsMargins(8, 4, 8, 4)
-        
-        self.lbl_size = QLabel("0 x 0")
-        self.lbl_size.setStyleSheet("color: #aaaaaa; font-family: monospace; margin-right: 10px;")
-        bg_layout.addWidget(self.lbl_size)
-        
-        from ui.icon_utils import create_svg_icon, SVG_DONE, SVG_CANCEL
-        
-        btn_done = QPushButton()
-        btn_done.setIcon(create_svg_icon(SVG_DONE))
-        btn_done.setIconSize(QSize(20, 20))
-        btn_done.setStyleSheet("background-color: #246bb2; padding: 6px 15px; border-radius: 3px; border: none;")
-        btn_cancel = QPushButton()
-        btn_cancel.setIcon(create_svg_icon(SVG_CANCEL))
-        btn_cancel.setIconSize(QSize(20, 20))
-            
-        btn_done.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_done.clicked.connect(on_done)
-        
-        btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_cancel.setStyleSheet("background-color: #4a4a4a; padding: 6px 15px; border-radius: 3px; border: none;")
-        btn_cancel.clicked.connect(on_cancel)
-        
-        bg_layout.addWidget(btn_done)
-        bg_layout.addWidget(btn_cancel)
-        layout.addWidget(bg)
-        self.adjustSize()
-        
-    def update_size(self, width, height):
-        self.lbl_size.setText(f"{width} x {height}")
-        self.adjustSize()
 
 class OverlayWindow(QWidget):
     capture_finished = Signal()
@@ -164,6 +102,12 @@ class OverlayWindow(QWidget):
             # Connect toolbar toggles to update the panel
             self.toolbar.cursor_toggled.connect(self.ready_panel.update_cursor_status)
             self.toolbar.audio_toggled.connect(self.ready_panel.update_audio_status)
+            self.toolbar.sys_audio_toggled.connect(self.ready_panel.update_sys_audio_status)
+            
+            # Sync initial states
+            self.ready_panel.update_cursor_status(self.toolbar.btn_cursor.isChecked())
+            self.ready_panel.update_audio_status(self.toolbar.btn_audio.isChecked())
+            self.ready_panel.update_sys_audio_status(self.toolbar.btn_sys_audio.isChecked())
             
             # Pass audio device name from config
             from config import load_config

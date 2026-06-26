@@ -7,7 +7,7 @@ import sys
 import os
 
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
-from PySide6.QtGui import QIcon, QAction
+from PySide6.QtGui import QAction
 from ui.main_window import MainWindow
 
 def get_documents_folder():
@@ -34,7 +34,14 @@ def main():
     from config import setup_logging
     setup_logging()   # Must be first - configures logging for the whole app
     sys.excepthook = global_exception_handler
+    if sys.platform == 'win32':
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('screencut.capture.app.v1')
     app = QApplication(sys.argv)
+    
+    from ui.icon_utils import create_svg_icon, SVG_APP_ICON
+    app_icon = create_svg_icon(SVG_APP_ICON, 64, 64)
+    app.setWindowIcon(app_icon)
     
     # Single Instance Check
     from PySide6.QtCore import QSharedMemory
@@ -57,9 +64,7 @@ def main():
     
     # Setup System Tray
     tray_icon = QSystemTrayIcon(window)
-    # Using a standard system icon as placeholder
-    icon = window.style().standardIcon(window.style().StandardPixmap.SP_ComputerIcon)
-    tray_icon.setIcon(icon)
+    tray_icon.setIcon(app_icon)
     tray_icon.setToolTip("ScreenCut")
     
     tray_menu = QMenu()

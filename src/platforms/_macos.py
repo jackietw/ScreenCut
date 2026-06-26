@@ -14,7 +14,7 @@ MOD_SHIFT   = 0x0004
 MOD_WIN     = 0x0008  # On macOS this maps to the Command key
 
 try:
-    from pynput import keyboard as _kb, mouse as _mouse
+    from pynput import keyboard as _kb
     HAS_PYNPUT = True
 except ImportError:
     HAS_PYNPUT = False
@@ -64,17 +64,17 @@ def _mods_vk_to_pynput_combo(mods: int, vk: int) -> set:
 
 class MacOSPlatform(PlatformBase):
 
-    # ?€?€ Documents Folder ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+    # --- Documents Folder ---
     @staticmethod
     def get_documents_folder() -> str:
         return os.path.expanduser("~/Documents")
 
-    # ?€?€ Screen Capture Exclusion ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+    # --- Screen Capture Exclusion ---
     @staticmethod
     def set_window_capture_excluded(hwnd: int) -> None:
         # macOS equivalent via PyObjC (optional, requires pyobjc-framework-AppKit)
         try:
-            from AppKit import NSApp, NSWindow
+            from AppKit import NSWindow  # type: ignore
             # setSharingType: 0 = NSWindowSharingNone (not captured)
             # This requires the window handle to be an NSWindow object, which
             # is not directly accessible from PySide6. Graceful no-op for now.
@@ -82,19 +82,19 @@ class MacOSPlatform(PlatformBase):
         except ImportError:
             pass
 
-    # ?€?€ Window Pass-Through ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+    # --- Window Pass-Through ---
     @staticmethod
     def set_window_click_through(hwnd: int) -> None:
         # Qt's WindowTransparentForInput flag handles this cross-platform.
         # Nothing extra needed on macOS.
         pass
 
-    # ?€?€ Visible Window Enumeration ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+    # --- Visible Window Enumeration ---
     @staticmethod
     def enum_visible_windows() -> list:
         # On macOS we use Quartz to enumerate visible windows
         try:
-            import Quartz
+            import Quartz  # type: ignore
             window_list = Quartz.CGWindowListCopyWindowInfo(
                 Quartz.kCGWindowListOptionOnScreenOnly | Quartz.kCGWindowListExcludeDesktopElements,
                 Quartz.kCGNullWindowID
@@ -112,7 +112,7 @@ class MacOSPlatform(PlatformBase):
         except ImportError:
             return []
 
-    # ?€?€ Global Hotkeys ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+    # --- Global Hotkeys ---
     @staticmethod
     def check_hotkey_conflict(mods: int, vk: int) -> bool:
         """On macOS pynput does not provide a conflict-check mechanism.
@@ -125,7 +125,7 @@ class MacOSPlatform(PlatformBase):
         """Register a global hotkey using pynput background listener."""
         if not HAS_PYNPUT:
             return False
-        from PySide6.QtCore import QMetaObject, Qt
+        from PySide6.QtCore import Qt
         combo = _mods_vk_to_pynput_combo(mods, vk)
         # Store combo + a no-op callback; actual dispatch done via Signal in main_window
         _registered_hotkeys[hotkey_id] = (combo, lambda: None)
@@ -143,7 +143,7 @@ class MacOSPlatform(PlatformBase):
             combo, _ = _registered_hotkeys[hotkey_id]
             _registered_hotkeys[hotkey_id] = (combo, callback)
 
-    # ?€?€ Cursor / Mouse ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+    # --- Cursor / Mouse ---
     @staticmethod
     def get_cursor_pos() -> tuple:
         try:
@@ -158,9 +158,9 @@ class MacOSPlatform(PlatformBase):
         if not HAS_PYNPUT:
             return False
         try:
-            from pynput.mouse import Button, Controller
+            from pynput.mouse import Controller
             # pynput does not expose button state directly; use Quartz as fallback
-            import Quartz
+            import Quartz  # type: ignore
             state = Quartz.CGEventSourceButtonState(
                 Quartz.kCGEventSourceStateHIDSystemState,
                 Quartz.kCGMouseButtonLeft

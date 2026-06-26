@@ -240,6 +240,8 @@ class MainWindow(QMainWindow):
         settings_layout.setSpacing(15)
         
         self.add_setting_row(settings_layout, "Capture Cursor", toggles_config.get("Capture Cursor (Video)", False), has_details=True, key_name="Capture Cursor (Video)")
+        self.add_setting_row(settings_layout, "Record Microphone", toggles_config.get("Record Microphone", True))
+        self.add_setting_row(settings_layout, "Record System Audio", toggles_config.get("Record System Audio", True))
         
         settings_layout.addStretch()
         layout.addLayout(settings_layout, stretch=2)

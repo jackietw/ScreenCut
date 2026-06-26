@@ -5,16 +5,14 @@
 
 import os
 import time
-import queue
-import threading
 import numpy as np
 import mss
 import imageio
 import cv2
 from platforms import Platform
-from PySide6.QtCore import QThread, Signal, QObject, QTimer, Qt
+from PySide6.QtCore import QThread, Signal, QObject, QTimer
 from PySide6.QtWidgets import QApplication
-from ui.video_toolbar import VideoToolbar
+from ui.toolbar import VideoToolbar
 from config import load_config
 
 class VideoCaptureThread(QThread):

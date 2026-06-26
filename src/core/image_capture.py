@@ -3,8 +3,8 @@
 * SPDX-License-Identifier: LGPL-2.0-or-later
 '''
 
-from PySide6.QtWidgets import QWidget, QApplication, QPushButton, QHBoxLayout, QLabel, QVBoxLayout
-from PySide6.QtCore import Qt, QTimer, QRect, QPoint
+from PySide6.QtWidgets import QWidget, QApplication, QHBoxLayout, QLabel, QVBoxLayout
+from PySide6.QtCore import Qt, QTimer, QPoint
 from PySide6.QtGui import QImage, QColor, QPainter, QPen, QPixmap, QFont
 import mss
 import cv2
@@ -109,32 +109,14 @@ class ScrollCaptureManager(QWidget):
         self.preview_lbl.setStyleSheet("background-color: #111111; border: 1px solid #666666; border-radius: 4px; margin-right: 15px;")
         self.preview_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        vbox_controls = QVBoxLayout()
-        vbox_controls.setSpacing(8)
-        
-        self.status_lbl = QLabel("Scroll vertically...")
-        self.status_lbl.setStyleSheet("color: white; font-weight: bold; font-size: 14px;")
-        
-        hbox_btns = QHBoxLayout()
-        btn_done = QPushButton("Finish")
-        btn_done.setStyleSheet("background-color: #1976d2; color: white; padding: 6px 15px; border-radius: 4px; font-weight: bold;")
-        btn_done.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_done.clicked.connect(self.finish_capture)
-        
-        btn_cancel = QPushButton("Cancel")
-        btn_cancel.setStyleSheet("background-color: #d32f2f; color: white; padding: 6px 15px; border-radius: 4px; font-weight: bold;")
-        btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_cancel.clicked.connect(self.cancel_capture)
-        
-        hbox_btns.addWidget(btn_done)
-        hbox_btns.addWidget(btn_cancel)
-        hbox_btns.addStretch()
-        
-        vbox_controls.addWidget(self.status_lbl)
-        vbox_controls.addLayout(hbox_btns)
+        from ui.toolbar import ScrollCaptureToolbar
+        self.toolbar_controls = ScrollCaptureToolbar()
+        self.toolbar_controls.finish_requested.connect(self.finish_capture)
+        self.toolbar_controls.cancel_requested.connect(self.cancel_capture)
+        self.status_lbl = self.toolbar_controls.status_lbl
         
         bg_layout.addWidget(self.preview_lbl)
-        bg_layout.addLayout(vbox_controls)
+        bg_layout.addWidget(self.toolbar_controls)
         layout.addWidget(bg)
         
         # Position the UI near the bottom of the capture rect

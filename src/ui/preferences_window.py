@@ -4,8 +4,9 @@
 '''
 
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QWidget, QFrame
-from PySide6.QtCore import Qt, QPoint
+from PySide6.QtCore import Qt, QPoint, QSize
 from config import load_config, save_config
+from ui.icon_utils import create_svg_icon, SVG_CLOSE
 
 class PreferencesWindow(QDialog):
     def __init__(self, parent=None):
@@ -79,10 +80,12 @@ class PreferencesWindow(QDialog):
         
         # Title Bar
         title_layout = QHBoxLayout()
-        title_lbl = QLabel("??Preferences")
+        title_lbl = QLabel("Preferences")
         title_lbl.setObjectName("Title")
         
-        close_btn = QPushButton("??)
+        close_btn = QPushButton()
+        close_btn.setIcon(create_svg_icon(SVG_CLOSE))
+        close_btn.setIconSize(QSize(16, 16))
         close_btn.setObjectName("CloseButton")
         close_btn.setFixedSize(24, 24)
         close_btn.setCursor(Qt.CursorShape.PointingHandCursor)

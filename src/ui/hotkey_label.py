@@ -79,7 +79,7 @@ class HotkeyLabel(QLabel):
         has_meta  = bool(modifiers & Qt.KeyboardModifier.MetaModifier)
 
         if not (has_ctrl and (has_alt or has_shift)):
-            # Not a valid hotkey combination ??cancel and revert
+            # Not a valid hotkey combination -> cancel and revert
             self.listening = False
             self.setText(self.current_hotkey)
             self.update_style(valid=self.valid)
