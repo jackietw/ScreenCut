@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QCheckBox
 from PySide6.QtCore import Qt, QPropertyAnimation, Property, QEasingCurve, QPoint
 from PySide6.QtGui import QPainter, QColor, QBrush
 
-class ToggleSwitch(QCheckBox):
+class Switch(QCheckBox):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedSize(36, 20)

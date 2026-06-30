@@ -18,7 +18,7 @@ try:
 except ImportError:
     HAS_WIN32 = False
 
-# Modifier flag constants (same as in hotkey_label.py)
+# Modifier flag constants (same as in hotkey.py)
 MOD_ALT     = 0x0001
 MOD_CONTROL = 0x0002
 MOD_SHIFT   = 0x0004

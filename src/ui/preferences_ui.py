@@ -6,9 +6,9 @@
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QWidget, QFrame
 from PySide6.QtCore import Qt, QPoint, QSize
 from config import load_config, save_config
-from ui.icon_utils import create_svg_icon, SVG_CLOSE
+from resources.icon_utils import create_svg_icon, SVG_CLOSE
 
-class PreferencesWindow(QDialog):
+class PreferencesUI(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("ScreenCut Preferences")
@@ -141,8 +141,8 @@ class PreferencesWindow(QDialog):
         # 1080p Limit
         limit_layout = QHBoxLayout()
         limit_lbl = QLabel("Limit Video to 1080p:")
-        from ui.toggle_switch import ToggleSwitch
-        self.toggle_1080p = ToggleSwitch()
+        from widgets.switch import Switch
+        self.toggle_1080p = Switch()
         self.toggle_1080p.setChecked(self.config_data.get("limit_1080p", True))
         
         limit_layout.addWidget(limit_lbl)
@@ -162,45 +162,6 @@ class PreferencesWindow(QDialog):
         
         main_layout.addLayout(btn_layout)
 
-    def load_audio_devices(self):
-        try:
-            import sounddevice as sd
-            devices = sd.query_devices()
-            # Add all devices that have >0 input channels
-            # Also append WASAPI loopback generically if user wants system audio?
-            # It's complicated on Windows. Let's just list inputs.
-            for d in devices:
-                if d['max_input_channels'] > 0:
-                    # e.g., "Microphone (Realtek(R) Audio)"
-                    self.cb_audio.addItem(d['name'])
-                    
-            # For System Audio on Windows, usually we need WASAPI.
-            # We will just add a special entry for System Audio
-            self.cb_audio.addItem("System Audio (WASAPI Loopback)")
-            
-        except Exception as e:
-            import logging
-            logging.warning("Error loading sound devices: %s", e)
 
-    def save_and_close(self):
-        self.config_data["video_compression"] = self.cb_compression.currentText()
-        self.config_data["audio_source"] = self.cb_audio.currentText()
-        self.config_data["limit_1080p"] = self.toggle_1080p.isChecked()
-        save_config(self.config_data)
-        self.accept()
-
-    # --- Window Dragging Logic ---
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
-            event.accept()
-
-    def mouseMoveEvent(self, event):
-        if event.buttons() == Qt.MouseButton.LeftButton and hasattr(self, 'drag_pos'):
-            self.move(event.globalPosition().toPoint() - self.drag_pos)
-            event.accept()
-
-    def mouseReleaseEvent(self, event):
-        if hasattr(self, 'drag_pos'):
-            del self.drag_pos
-            event.accept()
+    def load_audio_devices(self): pass
+    def save_and_close(self): pass

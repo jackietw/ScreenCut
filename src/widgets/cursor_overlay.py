@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QWidget, QApplication
 from PySide6.QtCore import Qt, QTimer, QRect
 from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QCursor
 
-class LiveCursorOverlay(QWidget):
+class CursorOverlay(QWidget):
     def __init__(self, hl_enabled=True, hl_color="#ffff00", cl_enabled=True, cl_color="#ff0000", capture_rect=None):
         super().__init__()
         self.hl_enabled = hl_enabled

@@ -13,7 +13,7 @@ import time
 import os
 import json
 from PySide6.QtCore import QBuffer, QByteArray, QIODevice
-from version import PROJECT_FILE_VERSION
+from version import PROJECT_VERSION
 
 class BorderOverlay(QWidget):
     def __init__(self, physical_rect):
@@ -112,7 +112,7 @@ class ScrollCaptureManager(QWidget):
         self.preview_lbl.setStyleSheet("background-color: #111111; border: 1px solid #666666; border-radius: 4px; margin-right: 15px;")
         self.preview_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        from ui.toolbar import ScrollCaptureToolbar
+        from widgets.capture_toolbar import ScrollCaptureToolbar
         self.toolbar_controls = ScrollCaptureToolbar()
         self.toolbar_controls.finish_requested.connect(self.finish_capture)
         self.toolbar_controls.cancel_requested.connect(self.cancel_capture)
@@ -322,7 +322,7 @@ def save_image_as_scut(q_img: QImage, filepath: str):
         thumb_b64 = t_ba.toBase64().data().decode('ascii')
         
         data = {
-            "version": PROJECT_FILE_VERSION,
+            "version": PROJECT_VERSION,
             "timestamp": time.strftime("%Y%m%d_%H%M%S"),
             "image_base64": img_b64,
             "thumbnail_base64": thumb_b64,
@@ -355,8 +355,8 @@ class ImageCaptureManager:
         from config import load_config
         config = load_config()
         if config.get("toggles", {}).get("Preview in Editor", True):
-            from ui.image_editor import ImageEditorWindow
-            ImageCaptureManager._active_editor = ImageEditorWindow.get_instance(library_dir, initial_image=cropped_image, current_filepath=filepath)
+            from ui.image_editor import ImageEditor
+            ImageCaptureManager._active_editor = ImageEditor.get_instance(library_dir, initial_image=cropped_image, current_filepath=filepath)
             return None
 
         # Show toast notification if class provided

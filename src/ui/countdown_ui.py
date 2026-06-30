@@ -4,10 +4,10 @@
 '''
 
 from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QApplication
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QCursor
 
-class CountdownWindow(QWidget):
+class CountdownUI(QWidget):
     finished = Signal()
     cancelled = Signal()
     
@@ -50,25 +50,3 @@ class CountdownWindow(QWidget):
         screen_geo = screen.geometry()
         
         self.move(screen_geo.right() - self.width() - 50, screen_geo.top() + 50)
-        
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.tick)
-        self.timer.start(1000)
-        
-    def tick(self):
-        self.seconds -= 1
-        if self.seconds > 0:
-            self.label.setText(str(self.seconds))
-        else:
-            self.timer.stop()
-            self.close()
-            self.finished.emit()
-            
-    def mousePressEvent(self, event):
-        # Cancel the countdown if the user clicks on the timer widget
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.timer.stop()
-            self.close()
-            self.cancelled.emit()
-            import logging
-            logging.debug("Countdown cancelled by user.")

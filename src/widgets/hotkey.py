@@ -15,7 +15,7 @@ MOD_CONTROL = 0x0002
 MOD_SHIFT   = 0x0004
 MOD_WIN     = 0x0008
 
-class HotkeyLabel(QLabel):
+class Hotkey(QLabel):
     hotkey_changed = Signal(str, int, int)  # config_key, modifiers, vk
 
     def __init__(self, default_hotkey="Hot Key", config_key=None):

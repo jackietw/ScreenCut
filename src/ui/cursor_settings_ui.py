@@ -5,7 +5,7 @@
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QColorDialog
 from PySide6.QtCore import Qt, Signal
-from ui.toggle_switch import ToggleSwitch
+from widgets.switch import Switch
 from config import load_config, save_config
 
 class ColorButton(QPushButton):
@@ -38,7 +38,7 @@ class ColorButton(QPushButton):
             self.update_style()
             self.color_changed.emit(self.current_color)
 
-class CursorSettingsPopup(QWidget):
+class CursorSettingsUI(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint | Qt.WindowType.NoDropShadowWindowHint)
@@ -70,7 +70,7 @@ class CursorSettingsPopup(QWidget):
         
         # Highlight Row
         hl_row = QHBoxLayout()
-        self.chk_highlight = ToggleSwitch()
+        self.chk_highlight = Switch()
         self.chk_highlight.setChecked(self.cursor_settings.get("highlight", False))
         self.chk_highlight.stateChanged.connect(self.save_settings)
         
@@ -87,7 +87,7 @@ class CursorSettingsPopup(QWidget):
         
         # Click Row
         cl_row = QHBoxLayout()
-        self.chk_click = ToggleSwitch()
+        self.chk_click = Switch()
         self.chk_click.setChecked(self.cursor_settings.get("click", False))
         self.chk_click.stateChanged.connect(self.save_settings)
         
@@ -106,11 +106,5 @@ class CursorSettingsPopup(QWidget):
         
         self.setFixedSize(240, 90)
         
-    def save_settings(self, *_):
-        self.cursor_settings["highlight"] = self.chk_highlight.isChecked()
-        self.cursor_settings["highlight_color"] = self.btn_hl_color.current_color
-        self.cursor_settings["click"] = self.chk_click.isChecked()
-        self.cursor_settings["click_color"] = self.btn_cl_color.current_color
-        
-        self.config_data["cursor_settings"] = self.cursor_settings
-        save_config(self.config_data)
+
+    def save_settings(self, *_): pass

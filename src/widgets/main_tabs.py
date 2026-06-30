@@ -5,7 +5,7 @@
 
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QPushButton
 from PySide6.QtCore import Qt
-from ui.hotkey_label import HotkeyLabel
+from widgets.hotkey import Hotkey
 from config import load_config
 
 class ImageTab(QWidget):
@@ -44,7 +44,7 @@ class ImageTab(QWidget):
         self.capture_btn.clicked.connect(self.main_window.start_capture)
         self.main_window.capture_btn = self.capture_btn
         
-        lbl_hotkey = HotkeyLabel("Ctrl+Shift+P", "image_hotkey")
+        lbl_hotkey = Hotkey("Ctrl+Shift+P", "image_hotkey")
         lbl_hotkey.hotkey_changed.connect(self.main_window.update_hotkey)
         
         capture_layout.addStretch()
@@ -87,7 +87,7 @@ class VideoTab(QWidget):
         self.record_btn.clicked.connect(self.main_window.start_video_capture)
         self.main_window.record_btn = self.record_btn
         
-        lbl_hotkey = HotkeyLabel("Ctrl+Shift+V", "video_hotkey")
+        lbl_hotkey = Hotkey("Ctrl+Shift+V", "video_hotkey")
         lbl_hotkey.hotkey_changed.connect(self.main_window.update_hotkey)
 
         capture_layout.addStretch()

@@ -30,8 +30,8 @@ class FloatingToolbar(QWidget):
         self.lbl_size.setStyleSheet("color: white; font-family: monospace; font-size: 13px; margin-right: 6px;")
         bg_layout.addWidget(self.lbl_size)
         
-        from ui.icon_utils import create_svg_icon, SVG_DONE, SVG_CANCEL
-        from ui.button_utils import create_toolbar_button
+        from resources.icon_utils import create_svg_icon, SVG_DONE, SVG_CANCEL
+        from resources.button_utils import create_toolbar_button
         
         btn_done = create_toolbar_button(icon=create_svg_icon(SVG_DONE), icon_size=QSize(20, 20), color_theme="blue", padding="6px 15px")
         btn_cancel = create_toolbar_button(icon=create_svg_icon(SVG_CANCEL), icon_size=QSize(20, 20), color_theme="cancel", padding="6px 15px")
@@ -66,7 +66,7 @@ class ScrollCaptureToolbar(QWidget):
         hbox_btns = QHBoxLayout()
         hbox_btns.setSpacing(8)
         
-        from ui.button_utils import create_toolbar_button
+        from resources.button_utils import create_toolbar_button
         self.btn_done = create_toolbar_button("Finish", color_theme="blue", padding="6px 15px")
         self.btn_done.clicked.connect(self.finish_requested.emit)
         
@@ -113,8 +113,8 @@ class VideoToolbar(QWidget):
         bg_layout.setContentsMargins(12, 8, 12, 8)
         bg_layout.setSpacing(8)
         
-        from ui.icon_utils import create_svg_icon, SVG_RECORD, SVG_STOP, SVG_MOUSE, SVG_MIC, SVG_MIC_OFF, SVG_SYS_AUDIO, SVG_SYS_AUDIO_OFF, SVG_CANCEL
-        from ui.button_utils import create_toolbar_button, SplitMenuButton
+        from resources.icon_utils import create_svg_icon, SVG_RECORD, SVG_STOP, SVG_MOUSE, SVG_MIC, SVG_MIC_OFF, SVG_SYS_AUDIO, SVG_SYS_AUDIO_OFF, SVG_CANCEL
+        from resources.button_utils import create_toolbar_button, SplitMenuButton
         from config import load_config
         cfg = load_config()
         toggles_cfg = cfg.get("toggles", {})
@@ -228,12 +228,12 @@ class VideoToolbar(QWidget):
             self.stop_requested.emit()
 
     def _on_audio_toggled(self, checked):
-        from ui.icon_utils import create_svg_icon, SVG_MIC, SVG_MIC_OFF
+        from resources.icon_utils import create_svg_icon, SVG_MIC, SVG_MIC_OFF
         self.btn_audio.setIcon(create_svg_icon(SVG_MIC if checked else SVG_MIC_OFF))
         self.audio_toggled.emit(checked)
 
     def _on_sys_audio_toggled(self, checked):
-        from ui.icon_utils import create_svg_icon, SVG_SYS_AUDIO, SVG_SYS_AUDIO_OFF
+        from resources.icon_utils import create_svg_icon, SVG_SYS_AUDIO, SVG_SYS_AUDIO_OFF
         self.btn_sys_audio.setIcon(create_svg_icon(SVG_SYS_AUDIO if checked else SVG_SYS_AUDIO_OFF))
         self.sys_audio_toggled.emit(checked)
 
@@ -250,7 +250,7 @@ class VideoToolbar(QWidget):
             self.parent().ready_panel.update_cursor_status(self.btn_cursor.isChecked())
 
     def _set_recording_state(self):
-        from ui.icon_utils import create_svg_icon, SVG_STOP
+        from resources.icon_utils import create_svg_icon, SVG_STOP
         self.state = self.RECORDING
         self.btn_action.setIcon(create_svg_icon(SVG_STOP))
         self.lbl_info.setText("00:00:00")

@@ -8,7 +8,7 @@ import os
 
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
 from PySide6.QtGui import QAction
-from ui.main_window import MainWindow
+from ui.main import Main
 
 def get_documents_folder():
     from platforms import Platform
@@ -29,6 +29,12 @@ def global_exception_handler(exc_type, exc_value, exc_tb):
         from PySide6.QtWidgets import QMessageBox
         QMessageBox.critical(None, "ScreenCut Error", f"An unexpected error occurred:\n\n{error_msg}")
 
+class ScreenCut(QApplication):
+    def __init__(self, argv):
+        super().__init__(argv)
+        self._lock_file = None
+
+
 def main():
     import sys
     from config import setup_logging
@@ -37,9 +43,9 @@ def main():
     if sys.platform == 'win32':
         import ctypes
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('screencut.capture.app.v1')
-    app = QApplication(sys.argv)
+    app = ScreenCut(sys.argv)
     
-    from ui.icon_utils import create_svg_icon, SVG_APP_ICON
+    from resources.icon_utils import create_svg_icon, SVG_APP_ICON
     app_icon = create_svg_icon(SVG_APP_ICON, 64, 64)
     app.setWindowIcon(app_icon)
     
@@ -50,7 +56,7 @@ def main():
         docs_dir = get_documents_folder()
         library_dir = os.path.join(docs_dir, "My ScreenCut Library")
         os.makedirs(library_dir, exist_ok=True)
-        from ui.image_editor import ImageEditorWindow
+        from ui.image_editor import ImageEditor
         from PySide6.QtGui import QImage
         file_path = None
         for arg in sys.argv[1:]:
@@ -58,9 +64,9 @@ def main():
                 file_path = arg
                 break
         if file_path and file_path.lower().endswith('.scut'):
-            editor = ImageEditorWindow.get_instance(library_dir, current_filepath=file_path)
+            editor = ImageEditor.get_instance(library_dir, current_filepath=file_path)
         else:
-            editor = ImageEditorWindow.get_instance(library_dir, initial_image=QImage(file_path) if file_path else None, current_filepath=file_path)
+            editor = ImageEditor.get_instance(library_dir, initial_image=QImage(file_path) if file_path else None, current_filepath=file_path)
         sys.exit(app.exec())
 
     # Single Instance Check via QLockFile (reliable cross-platform cleanup)
@@ -82,7 +88,7 @@ def main():
     library_dir = os.path.join(docs_dir, "My ScreenCut Library")
     os.makedirs(library_dir, exist_ok=True)
 
-    window = MainWindow(library_dir)
+    window = Main(library_dir)
     
     # Setup System Tray
     tray_icon = QSystemTrayIcon(window)

@@ -12,7 +12,7 @@ import cv2
 from platforms import Platform
 from PySide6.QtCore import QThread, Signal, QObject, QTimer
 from PySide6.QtWidgets import QApplication
-from ui.toolbar import VideoToolbar
+from widgets.capture_toolbar import VideoToolbar
 from config import load_config
 
 class VideoCaptureThread(QThread):
@@ -176,10 +176,10 @@ class VideoCaptureManager(QObject):
                 self.audio_device = "None (Muted)"
         
         if self.hl_enabled or self.cl_enabled:
-            from ui.live_cursor_overlay import LiveCursorOverlay
+            from widgets.cursor_overlay import CursorOverlay
             hl_color = self.cursor_settings.get("highlight_color", "#ffff00")
             cl_color = self.cursor_settings.get("click_color", "#ff0000")
-            self.live_overlay = LiveCursorOverlay(self.hl_enabled, hl_color, self.cl_enabled, cl_color, capture_rect=self.logical_rect)
+            self.live_overlay = CursorOverlay(self.hl_enabled, hl_color, self.cl_enabled, cl_color, capture_rect=self.logical_rect)
             if self.capture_cursor:
                 self.live_overlay.show()
         else:
@@ -278,8 +278,8 @@ class VideoCaptureManager(QObject):
             if os.path.exists(path):
                 os.remove(path)
         else:
-            from ui.toast_notification import ToastNotification
+            from widgets.notification import Notification
             # Save reference to prevent GC
-            self.__class__._active_toast = ToastNotification(f"Video saved successfully:\n{os.path.basename(path)}")
+            self.__class__._active_toast = Notification(f"Video saved successfully:\n{os.path.basename(path)}")
             self.__class__._active_toast.show_toast()
         self.deleteLater()
