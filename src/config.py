@@ -5,9 +5,25 @@
 
 import json
 import os
+import sys
 import copy
 
-CONFIG_PATH = os.path.join(os.path.expanduser("~"), "Documents", "ScreenCutLibrary", "config.json")
+def get_app_config_dir() -> str:
+    """Return OS-specific application settings directory for ScreenCut."""
+    if sys.platform == 'win32':
+        appdata = os.getenv("APPDATA")
+        if not appdata:
+            appdata = os.path.join(os.path.expanduser("~"), "AppData", "Roaming")
+        return os.path.join(appdata, "ScreenCut")
+    elif sys.platform == 'darwin':
+        return os.path.join(os.path.expanduser("~"), "Library", "Application Support", "ScreenCut")
+    else:
+        xdg_config = os.getenv("XDG_CONFIG_HOME")
+        if not xdg_config:
+            xdg_config = os.path.join(os.path.expanduser("~"), ".config")
+        return os.path.join(xdg_config, "ScreenCut")
+
+CONFIG_PATH = os.path.join(get_app_config_dir(), "config.json")
 
 # ---------------------------------------------------------------------------
 # Debug mode: set to True during development, False for release builds.
@@ -56,19 +72,31 @@ _config_mtime = 0
 
 def load_config():
     global _config_cache, _config_mtime
-    if os.path.exists(CONFIG_PATH):
-        try:
-            mtime = os.path.getmtime(CONFIG_PATH)
-            if _config_cache is not None and mtime == _config_mtime:
-                return copy.deepcopy(_config_cache)
-            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-                _config_cache = json.load(f)
-                _config_mtime = mtime
-                return copy.deepcopy(_config_cache)
-        except Exception as e:
-            import logging
-            logging.warning("Error loading config: %s", e)
-    return {}
+    if not os.path.exists(CONFIG_PATH):
+        # Check old location for backward compatibility / migration
+        old_path = os.path.join(os.path.expanduser("~"), "Documents", "ScreenCutLibrary", "config.json")
+        initial_config = {"debug_mode": DEFAULT_DEBUG}
+        if os.path.exists(old_path):
+            try:
+                with open(old_path, "r", encoding="utf-8") as f:
+                    initial_config = json.load(f)
+            except Exception:
+                pass
+        save_config(initial_config)
+        return copy.deepcopy(initial_config)
+
+    try:
+        mtime = os.path.getmtime(CONFIG_PATH)
+        if _config_cache is not None and mtime == _config_mtime:
+            return copy.deepcopy(_config_cache)
+        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+            _config_cache = json.load(f)
+            _config_mtime = mtime
+            return copy.deepcopy(_config_cache)
+    except Exception as e:
+        import logging
+        logging.warning("Error loading config: %s", e)
+        return {}
 
 def save_config(data):
     global _config_cache, _config_mtime
