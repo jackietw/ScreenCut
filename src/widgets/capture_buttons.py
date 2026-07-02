@@ -253,3 +253,10 @@ class SplitMenuButton(QWidget):
             if self.popup_widget:
                 self.popup_widget.setEnabled(is_active)
 
+    def addAction(self, action):
+        super().addAction(action)
+        return self.menu.addAction(action)
+
+    def addSeparator(self):
+        return self.menu.addSeparator()
+

@@ -24,7 +24,7 @@ from resources.icon_utils import (create_svg_icon, SVG_SELECT, SVG_ARROW, SVG_TE
                          SVG_ZOOM_OUT, SVG_CLOSE, SVG_RECENT, SVG_TAG, 
                          SVG_EFFECTS, SVG_PROPERTIES)
 from version import EDITOR_VERSION, PROJECT_VERSION
-from widgets.common_toast import Notification
+from widgets.common_notification import Notification
 
 from editor.editor_main_ui import (ImageEditorUI, AnnotationObject, ArrowObject, ShapeObject, TextObject, StepObject, ImageCanvas, ToolPropertiesPanel, ResizePopup, DeleteConfirmPopup, HorizontalScrollArea, ThumbnailWidget)
 

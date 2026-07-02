@@ -3,9 +3,13 @@
 * SPDX-License-Identifier: LGPL-2.0-or-later
 '''
 
+import os
 import sys
+import time
+import threading
 import subprocess
 import logging
+import numpy as np
 
 _cached_hw_encoders: list = None
 
@@ -102,3 +106,132 @@ def get_video_writer_params(hw_enabled: bool, preferred_codec: str, compression:
     if preferred_codec == "h264_videotoolbox":
         return (preferred_codec, ["-pix_fmt", "yuv420p", "-allow_sw", "1"])
     return (preferred_codec, ["-pix_fmt", "yuv420p"])
+
+
+class AudioRecorder:
+    def __init__(self, mic_device_name, sys_audio_enabled, is_mic_muted=False, is_sys_muted=False):
+        self.mic_device_name = mic_device_name
+        self.sys_audio_enabled = sys_audio_enabled
+        self.mic_muted = is_mic_muted
+        self.sys_muted = is_sys_muted
+        self.is_running = False
+        self.samplerate = 44100
+        self.chunk_frames = 2205  # 50ms per chunk
+        self.mic_chunks = []
+        self.sys_chunks = []
+        self.mic_thread = None
+        self.sys_thread = None
+
+    def start(self):
+        self.is_running = True
+        try:
+            import soundcard as sc
+        except ImportError:
+            return
+
+        # Start microphone loop
+        if self.mic_device_name and self.mic_device_name != "None (Muted)":
+            self.mic_thread = threading.Thread(target=self._mic_loop, daemon=True)
+            self.mic_thread.start()
+
+        # Start system speaker loopback
+        if self.sys_audio_enabled:
+            self.sys_thread = threading.Thread(target=self._sys_loop, daemon=True)
+            self.sys_thread.start()
+
+    def _mic_loop(self):
+        try:
+            import soundcard as sc
+            mic_obj = None
+            for m in sc.all_microphones(include_loopback=False):
+                if m.name == self.mic_device_name:
+                    mic_obj = m
+                    break
+            if not mic_obj:
+                mic_obj = sc.default_microphone()
+
+            with mic_obj.recorder(samplerate=self.samplerate, channels=2) as rec:
+                while self.is_running:
+                    data = rec.record(numframes=self.chunk_frames)
+                    if self.mic_muted:
+                        data = np.zeros_like(data)
+                    self.mic_chunks.append(data.copy())
+        except Exception as e:
+            logging.warning("Error recording microphone audio: %s", e)
+
+    def _sys_loop(self):
+        try:
+            import soundcard as sc
+            spk = sc.default_speaker()
+            sys_obj = sc.get_microphone(id=spk.id, include_loopback=True)
+
+            with sys_obj.recorder(samplerate=self.samplerate, channels=2) as rec:
+                while self.is_running:
+                    data = rec.record(numframes=self.chunk_frames)
+                    if self.sys_muted:
+                        data = np.zeros_like(data)
+                    self.sys_chunks.append(data.copy())
+        except Exception as e:
+            logging.warning("Error recording system audio loopback: %s", e)
+
+    def stop_and_get_audio(self):
+        self.is_running = False
+        if self.mic_thread and self.mic_thread.is_alive():
+            self.mic_thread.join(timeout=2.0)
+        if self.sys_thread and self.sys_thread.is_alive():
+            self.sys_thread.join(timeout=2.0)
+
+        mic_audio = np.concatenate(self.mic_chunks, axis=0) if self.mic_chunks else None
+        sys_audio = np.concatenate(self.sys_chunks, axis=0) if self.sys_chunks else None
+
+        if mic_audio is None and sys_audio is None:
+            return None
+
+        if mic_audio is not None and sys_audio is not None:
+            max_len = max(len(mic_audio), len(sys_audio))
+            if len(mic_audio) < max_len:
+                mic_audio = np.pad(mic_audio, ((0, max_len - len(mic_audio)), (0, 0)), mode='constant')
+            if len(sys_audio) < max_len:
+                sys_audio = np.pad(sys_audio, ((0, max_len - len(sys_audio)), (0, 0)), mode='constant')
+            combined = mic_audio + sys_audio
+            return np.clip(combined, -1.0, 1.0)
+        elif mic_audio is not None:
+            return np.clip(mic_audio, -1.0, 1.0)
+        else:
+            return np.clip(sys_audio, -1.0, 1.0)
+
+
+def mux_audio_into_video(video_path: str, audio_data: np.ndarray, samplerate: int = 44100) -> bool:
+    if audio_data is None or len(audio_data) == 0:
+        return False
+    library_dir = os.path.dirname(video_path)
+    try:
+        import soundfile as sf
+        import imageio_ffmpeg
+        temp_wav = os.path.join(library_dir, f"temp_aud_{int(time.time()*1000)}.wav")
+        temp_mp4 = os.path.join(library_dir, f"temp_vid_{int(time.time()*1000)}.mp4")
+        sf.write(temp_wav, audio_data, samplerate)
+        if os.path.exists(video_path):
+            os.rename(video_path, temp_mp4)
+            ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+            cmd = [
+                ffmpeg_exe, "-y",
+                "-i", temp_mp4,
+                "-i", temp_wav,
+                "-c:v", "copy",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                "-shortest",
+                video_path
+            ]
+            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if os.path.exists(temp_mp4):
+                try: os.remove(temp_mp4)
+                except Exception: pass
+            if os.path.exists(temp_wav):
+                try: os.remove(temp_wav)
+                except Exception: pass
+            return True
+    except Exception as e:
+        logging.warning("Failed to mux audio into video: %s", e)
+    return False

@@ -37,13 +37,20 @@ class RecStatus(RecStatusUI):
 
     def update_audio_status(self, is_audio_on: bool):
         self._is_audio_on = is_audio_on
+        from config import load_config
+        cfg = load_config()
         if is_audio_on:
             self.lbl_audio_on.setText("ON")
             self.lbl_audio_on.setStyleSheet("color: #4caf50; font-size: 13px; font-weight: 700;")
+            dev_name = cfg.get("audio_source", "Default Microphone")
+            if dev_name == "None (Muted)":
+                dev_name = "Default Microphone"
+            self.set_audio_device_name(dev_name)
             self._start_audio_monitor()
         else:
             self.lbl_audio_on.setText("OFF")
             self.lbl_audio_on.setStyleSheet("color: #cccccc; font-size: 13px; font-weight: 500;")
+            self.set_audio_device_name("None (Muted)")
             self._stop_audio_monitor()
             self.vu.set_level(0)
 

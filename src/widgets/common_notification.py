@@ -1,3 +1,8 @@
+'''
+* SPDX-FileCopyrightText: 2026 Jackie <jackie.github@outlook.com>
+* SPDX-License-Identifier: LGPL-2.0-or-later
+'''
+
 from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QApplication
 from PySide6.QtCore import Qt, QTimer
 

@@ -129,15 +129,16 @@ class PreferencesUI(QDialog):
         aud_layout = QHBoxLayout()
         aud_lbl = QLabel("Audio Source:")
         self.cb_audio = QComboBox()
-        self.cb_audio.addItem("None (Muted)")
         
         # Load audio devices dynamically
         self.load_audio_devices()
         
-        curr_aud = self.config_data.get("audio_source", "None (Muted)")
+        curr_aud = self.config_data.get("audio_source", "")
         idx = self.cb_audio.findText(curr_aud)
         if idx >= 0:
             self.cb_audio.setCurrentIndex(idx)
+        elif self.cb_audio.count() > 0:
+            self.cb_audio.setCurrentIndex(0)
             
         aud_layout.addWidget(aud_lbl)
         aud_layout.addWidget(self.cb_audio)

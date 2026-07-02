@@ -171,7 +171,7 @@ class Overlay(OverlayUI):
                     self.scroll_manager.show()
                 else:
                     from core.capture_engine import ImageCaptureManager
-                    from widgets.common_toast import Notification
+                    from widgets.common_notification import Notification
                     self.__class__._active_toast = ImageCaptureManager.save_static_capture(
                         self.bg_image, img_phys_rect, self.library_dir, Notification
                     )

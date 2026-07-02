@@ -168,18 +168,47 @@ class VideoToolbar(QWidget):
         self.cursor_split.addAction(self.act_hl)
         self.cursor_split.addAction(self.act_anim)
         
-        # Audio button (Mic)
-        self.btn_audio = create_toolbar_button(
+        # Audio button (Split button: Toggle + Dropdown Arrow for Mic selection)
+        self.audio_split = SplitMenuButton(
             icon=create_svg_icon(SVG_MIC if init_mic else SVG_MIC_OFF),
             icon_size=ICON_SIZE,
             color_theme="default",
             checkable=True,
             checked=init_mic,
-            padding="8px 12px"
+            padding="8px 8px",
+            fixed_height=40,
+            parent=self
         )
-        self.btn_audio.setFixedHeight(40)
+        self.btn_audio = self.audio_split.main_btn
+        self.btn_audio_menu = self.audio_split.arrow_btn
+        self.audio_menu = self.audio_split.menu
         self.btn_audio.toggled.connect(self._on_audio_toggled)
-        
+
+        from PySide6.QtGui import QActionGroup
+        self.audio_action_group = QActionGroup(self)
+        self.audio_action_group.setExclusive(True)
+        curr_aud = cfg.get("audio_source", "")
+
+        try:
+            import sounddevice as sd
+            devices = sd.query_devices()
+            found_checked = False
+            for d in devices:
+                if d['max_input_channels'] > 0:
+                    dev_name = d['name']
+                    act = QAction(dev_name, self, checkable=True)
+                    if dev_name == curr_aud:
+                        act.setChecked(True)
+                        found_checked = True
+                    act.triggered.connect(lambda checked=False, name=dev_name: self._on_audio_device_selected(name))
+                    self.audio_action_group.addAction(act)
+                    self.audio_split.addAction(act)
+            if not found_checked and len(self.audio_action_group.actions()) > 0:
+                self.audio_action_group.actions()[0].setChecked(True)
+        except Exception as e:
+            import logging
+            logging.warning("Error enumerating sound devices in toolbar: %s", e)
+
         # System Audio button
         self.btn_sys_audio = create_toolbar_button(
             icon=create_svg_icon(SVG_SYS_AUDIO if init_sys else SVG_SYS_AUDIO_OFF),
@@ -213,7 +242,7 @@ class VideoToolbar(QWidget):
         
         bg_layout.addWidget(self.btn_action)
         bg_layout.addWidget(self.cursor_split)
-        bg_layout.addWidget(self.btn_audio)
+        bg_layout.addWidget(self.audio_split)
         bg_layout.addWidget(self.btn_sys_audio)
         bg_layout.addWidget(self.lbl_info)
         bg_layout.addWidget(self.dot)
@@ -234,7 +263,25 @@ class VideoToolbar(QWidget):
     def _on_audio_toggled(self, checked):
         from resources.icon_utils import create_svg_icon, SVG_MIC, SVG_MIC_OFF
         self.btn_audio.setIcon(create_svg_icon(SVG_MIC if checked else SVG_MIC_OFF))
+        if checked and hasattr(self, 'audio_action_group'):
+            checked_act = self.audio_action_group.checkedAction()
+            if not checked_act:
+                actions = self.audio_action_group.actions()
+                if actions:
+                    actions[0].setChecked(True)
+                    self._on_audio_device_selected(actions[0].text())
         self.audio_toggled.emit(checked)
+
+    def _on_audio_device_selected(self, name):
+        from config import load_config, save_config
+        cfg = load_config()
+        cfg["audio_source"] = name
+        save_config(cfg)
+        if not self.btn_audio.isChecked():
+            self.btn_audio.setChecked(True)
+        if hasattr(self.parent(), "ready_panel") and self.parent().ready_panel:
+            self.parent().ready_panel.set_audio_device_name(name)
+            self.parent().ready_panel.update_audio_status(True)
 
     def _on_sys_audio_toggled(self, checked):
         from resources.icon_utils import create_svg_icon, SVG_SYS_AUDIO, SVG_SYS_AUDIO_OFF

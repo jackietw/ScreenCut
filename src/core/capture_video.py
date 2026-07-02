@@ -6,6 +6,7 @@
 import os
 import sys
 import time
+import threading
 import numpy as np
 import mss
 import imageio
@@ -15,11 +16,13 @@ from PySide6.QtCore import QThread, Signal, QObject, QTimer
 from PySide6.QtWidgets import QApplication
 from widgets.capture_toolbar import VideoToolbar
 from config import load_config
+from core.capture_codecs import AudioRecorder, mux_audio_into_video
+
 
 class VideoCaptureThread(QThread):
     finished_signal = Signal(str)
     
-    def __init__(self, rect, output_path, capture_cursor, compression, audio_device):
+    def __init__(self, rect, output_path, capture_cursor, compression, audio_device, sys_audio_enabled=True):
         super().__init__()
         self.rect = rect
         self.output_path = output_path
@@ -27,11 +30,21 @@ class VideoCaptureThread(QThread):
         self.capture_cursor = capture_cursor
         self.compression = compression
         self.audio_device = audio_device
+        self.sys_audio_enabled = sys_audio_enabled
         self.is_running = True
-        self.is_muted = False
+        self.is_muted = (audio_device == "None (Muted)" or not audio_device)
+        self.is_sys_muted = not sys_audio_enabled
+        self.audio_recorder = None
         
     def set_muted(self, muted):
         self.is_muted = muted
+        if self.audio_recorder:
+            self.audio_recorder.mic_muted = muted
+
+    def set_sys_muted(self, muted):
+        self.is_sys_muted = muted
+        if self.audio_recorder:
+            self.audio_recorder.sys_muted = muted
         
     def stop(self):
         self.is_running = False
@@ -79,6 +92,10 @@ class VideoCaptureThread(QThread):
             "height": self.rect.height()
         }
         
+        audio_recorder = AudioRecorder(self.audio_device, self.sys_audio_enabled, self.is_muted, self.is_sys_muted)
+        audio_recorder.start()
+        self.audio_recorder = audio_recorder
+
         with mss.mss() as sct:
             frame_duration = 1.0 / fps
             next_frame_time = time.time()
@@ -112,29 +129,25 @@ class VideoCaptureThread(QThread):
                         fx = cx - monitor["left"]
                         fy = cy - monitor["top"]
 
-                        # Only draw if inside the frame
-                        if 0 <= fx < monitor["width"] and 0 <= fy < monitor["height"]:
-                            # Draw Highlight
-                            if self.hl_enabled:
-                                overlay = frame.copy()
-                                cv2.circle(overlay, (fx, fy), 20, self.hl_color, -1)
-                                cv2.addWeighted(overlay, 0.4, frame, 0.6, 0, frame)
+                        # Draw Highlight
+                        if self.hl_enabled:
+                            cv2.circle(frame, (fx, fy), 24, self.hl_color, -1, cv2.LINE_AA)
+                        
+                        # Trigger Click Animation on state change
+                        if self.cl_enabled:
+                            is_clicking = Platform.is_mouse_button_pressed(1)
+                            if is_clicking and not prev_clicked:
+                                click_animations.append({"pos": (fx, fy), "radius": 4.0})
+                            prev_clicked = is_clicking
 
-                            # Track Clicks
-                            if self.cl_enabled:
-                                is_clicked = Platform.get_left_button_down()
-                                if is_clicked and not prev_clicked:
-                                    click_animations.append({"pos": (fx, fy), "radius": 5})
-                                prev_clicked = is_clicked
-
-                            # Draw Vector Cursor
-                            cursor_poly = np.array([
-                                [fx, fy], [fx, fy+20], [fx+5, fy+15],
-                                [fx+10, fy+25], [fx+12, fy+24],
-                                [fx+7, fy+14], [fx+15, fy+14]
-                            ], np.int32)
-                            cv2.fillPoly(frame, [cursor_poly], (0, 0, 0))
-                            cv2.polylines(frame, [cursor_poly], True, (255, 255, 255), 1, cv2.LINE_AA)
+                        # Draw Vector Cursor
+                        cursor_poly = np.array([
+                            [fx, fy], [fx, fy+20], [fx+5, fy+15],
+                            [fx+10, fy+25], [fx+12, fy+24],
+                            [fx+7, fy+14], [fx+15, fy+14]
+                        ], np.int32)
+                        cv2.fillPoly(frame, [cursor_poly], (0, 0, 0))
+                        cv2.polylines(frame, [cursor_poly], True, (255, 255, 255), 1, cv2.LINE_AA)
                     except Exception:
                         pass
                 
@@ -176,6 +189,9 @@ class VideoCaptureThread(QThread):
                         next_frame_time += frame_duration
                     
         writer.close()
+
+        audio_data = audio_recorder.stop_and_get_audio()
+        mux_audio_into_video(self.output_path, audio_data, audio_recorder.samplerate)
         self.finished_signal.emit(self.output_path)
 
 
@@ -224,12 +240,14 @@ class VideoCaptureManager(QObject):
             self.toolbar.stop_requested.connect(self.stop_capture)
             self.toolbar.cancel_requested.connect(self.cancel_capture)
             self.toolbar.audio_toggled.connect(self.toggle_audio)
+            self.toolbar.sys_audio_toggled.connect(self.toggle_sys_audio)
             self.toolbar.cursor_toggled.connect(self.toggle_cursor)
         else:
             self.toolbar = VideoToolbar()
             self.toolbar.stop_requested.connect(self.stop_capture)
             self.toolbar.cancel_requested.connect(self.cancel_capture)
             self.toolbar.audio_toggled.connect(self.toggle_audio)
+            self.toolbar.sys_audio_toggled.connect(self.toggle_sys_audio)
             self.toolbar.cursor_toggled.connect(self.toggle_cursor)
             
             # Position toolbar if created newly
@@ -250,12 +268,14 @@ class VideoCaptureManager(QObject):
             self.toolbar.show()
         
         # Determine initial toggles from toolbar state if available
+        self.sys_audio_enabled = toggles.get("Record System Audio", True)
         if existing_toolbar:
             self.capture_cursor = existing_toolbar.btn_cursor.isChecked()
+            self.sys_audio_enabled = existing_toolbar.btn_sys_audio.isChecked()
             if not existing_toolbar.btn_audio.isChecked():
                 self.audio_device = "None (Muted)"
         
-        self.thread = VideoCaptureThread(self.rect, self.output_path, self.capture_cursor, self.compression, self.audio_device)
+        self.thread = VideoCaptureThread(self.rect, self.output_path, self.capture_cursor, self.compression, self.audio_device, self.sys_audio_enabled)
         self.thread.finished_signal.connect(self.on_finished)
         self.thread.start()
         
@@ -278,8 +298,12 @@ class VideoCaptureManager(QObject):
     def toggle_audio(self, is_audio_on):
         self.audio_enabled = is_audio_on
         if hasattr(self, 'thread') and self.thread:
-            # We assume thread.set_muted expects 'True' to mute, so we pass 'not is_audio_on'
             self.thread.set_muted(not is_audio_on)
+
+    def toggle_sys_audio(self, is_sys_on):
+        self.sys_audio_enabled = is_sys_on
+        if hasattr(self, 'thread') and self.thread:
+            self.thread.set_sys_muted(not is_sys_on)
 
     def toggle_cursor(self, show_cursor):
         self.capture_cursor = show_cursor
@@ -307,7 +331,7 @@ class VideoCaptureManager(QObject):
             if os.path.exists(path):
                 os.remove(path)
         else:
-            from widgets.common_toast import Notification
+            from widgets.common_notification import Notification
             # Save reference to prevent GC
             self.__class__._active_toast = Notification(f"Video saved successfully:\n{os.path.basename(path)}")
             self.__class__._active_toast.show_toast()
