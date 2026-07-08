@@ -1,0 +1,52 @@
+# Prerequisites
+*.d
+*.o
+*.obj
+*.exe
+*.dll
+*.dylib
+*.so
+*.a
+*.lib
+*.pdb
+*.ilk
+*.exp
+
+# CMake & Build directories
+build/
+build-*/
+cmake-build-*/
+out/
+bin/
+*.dir/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+*.ninja
+
+# Qt generated files
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+*.qm
+*.pro.user
+*.pro.user.*
+
+# IDE & Editor files
+.vs/
+.vscode/
+*.sln
+*.vcxproj
+*.vcxproj.user
+*.vcxproj.filters
+*.suo
+*.user
+.idea/
+*.swp
+*~
+.DS_Store
+
+# Logs and temporary files
+*.log
+*.tmp
+scratch/
