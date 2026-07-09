@@ -1,12 +1,18 @@
 /**
  * SPDX-FileCopyrightText: 2026 Jackie <jackie.github@outlook.com>
- * SPDX-License-Identifier: LGPL-2.0-or-later
+ * SPDX-License-Identifier: LGPL-2.1-or-later
  */
 
 #include <QApplication>
 #include <QFileInfo>
 #include <QDebug>
 #include <QMessageBox>
+#include <QCommandLineParser>
+#include <QCommandLineOption>
+#include <cstdio>
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 #include "editor_window.h"
 #include "../version.h"
 #include "../config.h"
@@ -22,6 +28,29 @@ int main(int argc, char *argv[]) {
     app.setOrganizationDomain(SCREENCUT_ORG_DOMAIN);
     app.setApplicationVersion(SCREENCUT_VERSION_STR);
 
+    QCommandLineParser parser;
+    parser.setApplicationDescription("ScreenCut Editor - Screenshot Annotation Tool");
+    QCommandLineOption versionOption(QStringList() << "v" << "version", "Displays version information.");
+    parser.addOption(versionOption);
+    parser.addHelpOption();
+    parser.addPositionalArgument("file", "Image file to open.");
+    QCommandLineOption debugOption(QStringList() << "d" << "debug", "Enable debug logging output.");
+    parser.addOption(debugOption);
+    parser.process(app);
+
+    if (parser.isSet(versionOption)) {
+#ifdef Q_OS_WIN
+        if (AttachConsole(ATTACH_PARENT_PROCESS)) {
+            FILE* fp;
+            freopen_s(&fp, "CONOUT$", "w", stdout);
+            freopen_s(&fp, "CONOUT$", "w", stderr);
+        }
+#endif
+        printf("%s Editor %s\n", SCREENCUT_APP_NAME, SCREENCUT_VERSION_STR);
+        fflush(stdout);
+        return 0;
+    }
+
     // Initialize global configuration and logging system
     Config::setupLogging();
     qDebug() << "[EditorMain] ScreenCut Editor Application started (Standalone Studio). Version:" << SCREENCUT_VERSION_STR << "| DebugMode:" << Config::isDebugMode();
@@ -29,10 +58,10 @@ int main(int argc, char *argv[]) {
     // 2. Instantiate standalone EditorMainWindow
     EditorMainWindow* editor = EditorMainWindow::instance();
 
-    // 3. Parse command line arguments for image file loading (e.g. from Capture IPC or Windows Explorer)
-    QStringList args = app.arguments();
-    if (args.size() > 1) {
-        QString filePath = args.at(1);
+    // 3. Parse command line positional arguments for image file loading (e.g. from Capture IPC or Windows Explorer)
+    const QStringList posArgs = parser.positionalArguments();
+    if (!posArgs.isEmpty()) {
+        QString filePath = posArgs.first();
         qDebug() << "Opening file from command line argument:" << filePath;
         if (!editor->loadImageFile(filePath)) {
             QMessageBox::warning(nullptr, "ScreenCut Editor", 

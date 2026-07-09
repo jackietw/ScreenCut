@@ -1,4 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: 2026 Jackie <jackie.github@outlook.com>
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ */
+
 #include "capture_engine.h"
+#include "../capture/capture_window.h"
 #include <QGuiApplication>
 #include <QApplication>
 #include <QScreen>
@@ -24,12 +30,13 @@
 #endif
 
 #include "../widgets/capture_toolbar.h"
-#include "../widgets/common_pin.h"
+#include "../widgets/capture_pin.h"
 #include <QClipboard>
 #include <QFileDialog>
 #include <QStandardPaths>
-#include <QDateTime>
 #include "common_project.h"
+#include "../widgets/capture_countdown.h"
+#include "../widgets/capture_scroll.h"
 
 namespace ScreenCut {
 
@@ -52,10 +59,145 @@ CaptureEngine::~CaptureEngine() {
     }
 }
 
+void CaptureEngine::drawCursorOnRegion(QPixmap& target, const QPoint& targetTopLeftGlobal, const QPoint& cursorGlobalPos) {
+    if (target.isNull()) return;
+    QPoint localPos = cursorGlobalPos - targetTopLeftGlobal;
+
+    if (localPos.x() < -50 || localPos.x() > target.width() + 50 ||
+        localPos.y() < -50 || localPos.y() > target.height() + 50) {
+        if (target.rect().contains(localPos)) {
+            // inside, okay
+        } else {
+            QPoint curPos = QCursor::pos() - targetTopLeftGlobal;
+            if (target.rect().contains(curPos)) {
+                localPos = curPos;
+            } else {
+                return;
+            }
+        }
+    }
+
+#ifdef Q_OS_WIN
+    CURSORINFO ci = { sizeof(CURSORINFO) };
+    if (GetCursorInfo(&ci) && ci.hCursor) {
+        ICONINFO ii = { 0 };
+        if (GetIconInfo(ci.hCursor, &ii)) {
+            QPoint hotspot(ii.xHotspot, ii.yHotspot);
+            if (ii.hbmMask) DeleteObject(ii.hbmMask);
+            if (ii.hbmColor) DeleteObject(ii.hbmColor);
+
+            int w = GetSystemMetrics(SM_CXCURSOR);
+            int h = GetSystemMetrics(SM_CYCURSOR);
+            if (w <= 0) w = 32;
+            if (h <= 0) h = 32;
+
+            BITMAPINFO bmi = { 0 };
+            bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+            bmi.bmiHeader.biWidth = w;
+            bmi.bmiHeader.biHeight = -h; // Top-down DIB
+            bmi.bmiHeader.biPlanes = 1;
+            bmi.bmiHeader.biBitCount = 32;
+            bmi.bmiHeader.biCompression = BI_RGB;
+
+            HDC hdcScreen = GetDC(NULL);
+            HDC hdcMem = CreateCompatibleDC(hdcScreen);
+            void* pBits = nullptr;
+            HBITMAP hDib = CreateDIBSection(hdcScreen, &bmi, DIB_RGB_COLORS, &pBits, NULL, 0);
+            if (hDib) {
+                HGDIOBJ hOld = SelectObject(hdcMem, hDib);
+                DrawIconEx(hdcMem, 0, 0, ci.hCursor, w, h, 0, NULL, DI_NORMAL);
+
+                QImage cursorImg(static_cast<const uchar*>(pBits), w, h, QImage::Format_ARGB32_Premultiplied);
+                QPixmap cursorPix = QPixmap::fromImage(cursorImg.copy());
+
+                SelectObject(hdcMem, hOld);
+                DeleteObject(hDib);
+                DeleteDC(hdcMem);
+                ReleaseDC(NULL, hdcScreen);
+
+                QPainter painter(&target);
+                painter.drawPixmap(localPos - hotspot, cursorPix);
+                painter.end();
+                return;
+            }
+            DeleteDC(hdcMem);
+            ReleaseDC(NULL, hdcScreen);
+        }
+    }
+#endif
+
+    QPainter painter(&target);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    QPainterPath path;
+    path.moveTo(localPos.x(), localPos.y());
+    path.lineTo(localPos.x() + 0, localPos.y() + 18);
+    path.lineTo(localPos.x() + 5, localPos.y() + 14);
+    path.lineTo(localPos.x() + 9, localPos.y() + 22);
+    path.lineTo(localPos.x() + 12, localPos.y() + 20);
+    path.lineTo(localPos.x() + 8, localPos.y() + 12);
+    path.lineTo(localPos.x() + 14, localPos.y() + 12);
+    path.closeSubpath();
+
+    painter.setPen(QPen(Qt::black, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter.setBrush(Qt::white);
+    painter.drawPath(path);
+    painter.end();
+}
+
+void CaptureEngine::drawCursorOnSnapshot(QPixmap& snapshot) {
+    if (snapshot.isNull()) return;
+    QList<QScreen*> screens = QGuiApplication::screens();
+    QRect virtualGeometry;
+    for (QScreen* screen : screens) {
+        virtualGeometry = virtualGeometry.united(screen->geometry());
+    }
+    drawCursorOnRegion(snapshot, virtualGeometry.topLeft(), QCursor::pos());
+}
+
 void CaptureEngine::startCapture(CaptureMode mode) {
     qDebug() << "[CaptureEngine] Starting capture. Mode:" << static_cast<int>(mode);
+    if (m_isPendingCapture) {
+        qWarning() << "[CaptureEngine] Capture already pending, ignoring request.";
+        return;
+    }
     m_currentMode = mode;
+    m_isPendingCapture = true;
+
+    bool wasVisible = CaptureMainWindow::instance() && CaptureMainWindow::instance()->isVisible();
+    if (wasVisible) {
+        qDebug() << "[CaptureEngine] Hiding visible CaptureMainWindow before capture starts...";
+        CaptureMainWindow::instance()->hide();
+    }
+
+    bool delay5s = CaptureMainWindow::instance() && CaptureMainWindow::instance()->isSettingEnabled("5 Second Delay");
+    if (delay5s) {
+        qDebug() << "[CaptureEngine] 5 Second Delay enabled. Showing top-right 5s countdown overlay...";
+        CountdownWidget* countdown = new CountdownWidget(5, nullptr);
+        connect(countdown, &CountdownWidget::cancelled, this, [this]() {
+            qDebug() << "[CaptureEngine] 5s countdown cancelled by user clicking box.";
+            m_isPendingCapture = false;
+            emit captureCancelled();
+        });
+        connect(countdown, &CountdownWidget::completed, this, [this, mode]() {
+            qDebug() << "[CaptureEngine] 5s countdown completed. Taking snapshot...";
+            doActualCapture(mode);
+        });
+        countdown->startCountdown();
+    } else if (wasVisible) {
+        QTimer::singleShot(200, this, [this, mode]() {
+            doActualCapture(mode);
+        });
+    } else {
+        doActualCapture(mode);
+    }
+}
+
+void CaptureEngine::doActualCapture(CaptureMode mode) {
+    m_isPendingCapture = false;
     m_fullDesktopSnapshot = captureAllScreens();
+    if (mode == CaptureMode::FullScreen && CaptureMainWindow::instance() && CaptureMainWindow::instance()->isSettingEnabled("Image_Capture Cursor")) {
+        drawCursorOnSnapshot(m_fullDesktopSnapshot);
+    }
     qDebug() << "[CaptureEngine] Desktop snapshot captured. Size:" << m_fullDesktopSnapshot.size();
 
     if (m_currentMode == CaptureMode::FullScreen) {
@@ -70,7 +212,31 @@ void CaptureEngine::startCapture(CaptureMode mode) {
     }
 
     m_overlayWidget = new RegionSelectWidget(m_fullDesktopSnapshot, m_currentMode);
-    connect(m_overlayWidget, &RegionSelectWidget::regionSelected, this, [this](const QRect& rect) {
+
+    auto startScrollCaptureFunc = [this](const QRect& rect) {
+        qDebug() << "[CaptureEngine] Region selected for Scrolling capture. Launching ScrollCaptureManager on rect:" << rect;
+        if (m_overlayWidget) {
+            m_overlayWidget->close();
+            m_overlayWidget->deleteLater();
+            m_overlayWidget = nullptr;
+        }
+        ScrollCaptureManager* scrollMgr = new ScrollCaptureManager(rect, nullptr);
+        connect(scrollMgr, &ScrollCaptureManager::completed, this, [this](const QPixmap& stitchedPix) {
+            qDebug() << "[CaptureEngine] Scrolling capture completed. Stitched size:" << stitchedPix.size();
+            emit captureCompleted(stitchedPix);
+        });
+        connect(scrollMgr, &ScrollCaptureManager::cancelled, this, [this]() {
+            qDebug() << "[CaptureEngine] Scrolling capture cancelled by user.";
+            emit captureCancelled();
+        });
+        scrollMgr->show();
+    };
+
+    connect(m_overlayWidget, &RegionSelectWidget::confirmRequested, this, [this, startScrollCaptureFunc](const QRect& rect) {
+        if (m_currentMode == CaptureMode::Scrolling) {
+            startScrollCaptureFunc(rect);
+            return;
+        }
         QPixmap cropped = captureRect(rect);
         if (m_overlayWidget) {
             m_overlayWidget->close();
@@ -80,7 +246,25 @@ void CaptureEngine::startCapture(CaptureMode mode) {
         emit captureCompleted(cropped);
     });
 
-    connect(m_overlayWidget, &RegionSelectWidget::copyRequested, this, [this](const QRect& rect) {
+    connect(m_overlayWidget, &RegionSelectWidget::regionSelected, this, [this, startScrollCaptureFunc](const QRect& rect) {
+        if (m_currentMode == CaptureMode::Scrolling) {
+            startScrollCaptureFunc(rect);
+            return;
+        }
+        QPixmap cropped = captureRect(rect);
+        if (m_overlayWidget) {
+            m_overlayWidget->close();
+            m_overlayWidget->deleteLater();
+            m_overlayWidget = nullptr;
+        }
+        emit captureEdited(cropped);
+    });
+
+    connect(m_overlayWidget, &RegionSelectWidget::copyRequested, this, [this, startScrollCaptureFunc](const QRect& rect) {
+        if (m_currentMode == CaptureMode::Scrolling) {
+            startScrollCaptureFunc(rect);
+            return;
+        }
         QPixmap cropped = captureRect(rect);
         if (m_overlayWidget) {
             m_overlayWidget->close();
@@ -90,7 +274,11 @@ void CaptureEngine::startCapture(CaptureMode mode) {
         emit captureCopied(cropped);
     });
 
-    connect(m_overlayWidget, &RegionSelectWidget::saveRequested, this, [this](const QRect& rect) {
+    connect(m_overlayWidget, &RegionSelectWidget::saveRequested, this, [this, startScrollCaptureFunc](const QRect& rect) {
+        if (m_currentMode == CaptureMode::Scrolling) {
+            startScrollCaptureFunc(rect);
+            return;
+        }
         QPixmap cropped = captureRect(rect);
         if (m_overlayWidget) {
             m_overlayWidget->close();
@@ -161,7 +349,16 @@ QPixmap CaptureEngine::captureRect(const QRect& rect) {
     if (boundedRect.isEmpty()) {
         return m_fullDesktopSnapshot;
     }
-    return m_fullDesktopSnapshot.copy(boundedRect);
+    QPixmap cropped = m_fullDesktopSnapshot.copy(boundedRect);
+
+    if (CaptureMainWindow::instance() && CaptureMainWindow::instance()->isSettingEnabled("Image_Capture Cursor")) {
+        QPoint cursorPos = QCursor::pos();
+        if (m_overlayWidget && !m_overlayWidget->lastSelectionMousePos().isNull()) {
+            cursorPos = m_overlayWidget->lastSelectionMousePos();
+        }
+        drawCursorOnRegion(cropped, boundedRect.topLeft(), cursorPos);
+    }
+    return cropped;
 }
 
 QPixmap CaptureEngine::captureScreen(QScreen* screen) {
@@ -416,6 +613,7 @@ void RegionSelectWidget::drawMagnifier(QPainter& painter, const QPoint& pos) {
 
 void RegionSelectWidget::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
+        m_lastSelectionMousePos = event->pos();
         if (m_selectionConfirmed) {
             m_activeHandle = hitTestHandle(event->pos());
             if (m_activeHandle != 0) {
@@ -438,6 +636,7 @@ void RegionSelectWidget::mousePressEvent(QMouseEvent* event) {
             m_selectionConfirmed = true;
             if (!m_toolbar) {
                 m_toolbar = new CaptureToolBarWidget(this);
+                connect(m_toolbar, &CaptureToolBarWidget::actionConfirm, this, &RegionSelectWidget::executeConfirm);
                 connect(m_toolbar, &CaptureToolBarWidget::actionEdit, this, &RegionSelectWidget::executeEdit);
                 connect(m_toolbar, &CaptureToolBarWidget::actionCopy, this, &RegionSelectWidget::executeCopy);
                 connect(m_toolbar, &CaptureToolBarWidget::actionSave, this, &RegionSelectWidget::executeSave);
@@ -467,6 +666,9 @@ void RegionSelectWidget::mousePressEvent(QMouseEvent* event) {
 
 void RegionSelectWidget::mouseMoveEvent(QMouseEvent* event) {
     m_currentMousePos = event->pos();
+    if (m_isSelecting || (m_mode == CaptureMode::Window || m_mode == CaptureMode::Region)) {
+        m_lastSelectionMousePos = event->pos();
+    }
     if (m_selectionConfirmed && m_activeHandle != 0) {
         QPoint delta = event->pos() - m_dragStartPos;
         QRect newRect = m_dragStartRect;
@@ -500,6 +702,7 @@ void RegionSelectWidget::mouseMoveEvent(QMouseEvent* event) {
 
 void RegionSelectWidget::mouseReleaseEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
+        m_lastSelectionMousePos = event->pos();
         if (m_isSelecting) {
             m_isSelecting = false;
             m_endPoint = event->pos();
@@ -508,6 +711,7 @@ void RegionSelectWidget::mouseReleaseEvent(QMouseEvent* event) {
                 m_selectionConfirmed = true;
                 if (!m_toolbar) {
                     m_toolbar = new CaptureToolBarWidget(this);
+                    connect(m_toolbar, &CaptureToolBarWidget::actionConfirm, this, &RegionSelectWidget::executeConfirm);
                     connect(m_toolbar, &CaptureToolBarWidget::actionEdit, this, &RegionSelectWidget::executeEdit);
                     connect(m_toolbar, &CaptureToolBarWidget::actionCopy, this, &RegionSelectWidget::executeCopy);
                     connect(m_toolbar, &CaptureToolBarWidget::actionSave, this, &RegionSelectWidget::executeSave);
@@ -523,6 +727,7 @@ void RegionSelectWidget::mouseReleaseEvent(QMouseEvent* event) {
                 m_selectionConfirmed = true;
                 if (!m_toolbar) {
                     m_toolbar = new CaptureToolBarWidget(this);
+                    connect(m_toolbar, &CaptureToolBarWidget::actionConfirm, this, &RegionSelectWidget::executeConfirm);
                     connect(m_toolbar, &CaptureToolBarWidget::actionEdit, this, &RegionSelectWidget::executeEdit);
                     connect(m_toolbar, &CaptureToolBarWidget::actionCopy, this, &RegionSelectWidget::executeCopy);
                     connect(m_toolbar, &CaptureToolBarWidget::actionSave, this, &RegionSelectWidget::executeSave);
@@ -544,7 +749,8 @@ void RegionSelectWidget::mouseReleaseEvent(QMouseEvent* event) {
 
 void RegionSelectWidget::mouseDoubleClickEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton && m_selectionConfirmed && m_selectedRect.contains(event->pos())) {
-        executeCopy();
+        m_lastSelectionMousePos = event->pos();
+        executeConfirm();
     }
 }
 
@@ -552,7 +758,7 @@ void RegionSelectWidget::keyPressEvent(QKeyEvent* event) {
     if (event->key() == Qt::Key_Escape) {
         emit cancelled();
     } else if ((event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) && m_selectionConfirmed) {
-        executeCopy();
+        executeConfirm();
     } else {
         QWidget::keyPressEvent(event);
     }
@@ -634,6 +840,12 @@ void RegionSelectWidget::executeCopy() {
     }
 }
 
+void RegionSelectWidget::executeConfirm() {
+    if (m_selectedRect.isValid() && !m_selectedRect.isEmpty()) {
+        emit confirmRequested(m_selectedRect);
+    }
+}
+
 void RegionSelectWidget::executeSave() {
     if (m_selectedRect.isValid() && !m_selectedRect.isEmpty()) {
         emit saveRequested(m_selectedRect);
@@ -643,6 +855,10 @@ void RegionSelectWidget::executeSave() {
 void RegionSelectWidget::executePin() {
     if (m_selectedRect.isValid() && !m_selectedRect.isEmpty()) {
         QPixmap cropped = m_desktopSnapshot.copy(m_selectedRect);
+        if (CaptureMainWindow::instance() && CaptureMainWindow::instance()->isSettingEnabled("Image_Capture Cursor")) {
+            QPoint cursorPos = m_lastSelectionMousePos.isNull() ? QCursor::pos() : m_lastSelectionMousePos;
+            CaptureEngine::instance()->drawCursorOnRegion(cropped, m_selectedRect.topLeft(), cursorPos);
+        }
         PinWidget* pin = new PinWidget(cropped);
         pin->move(m_selectedRect.topLeft());
         pin->show();

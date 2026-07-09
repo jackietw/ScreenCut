@@ -1,6 +1,6 @@
 /**
  * SPDX-FileCopyrightText: 2026 Jackie <jackie.github@outlook.com>
- * SPDX-License-Identifier: LGPL-2.0-or-later
+ * SPDX-License-Identifier: LGPL-2.1-or-later
  */
 
 #ifndef CAPTURE_TOOLBAR_H
@@ -20,6 +20,7 @@ public:
     ~CaptureToolBarWidget() override;
 
 signals:
+    void actionConfirm();
     void actionEdit();
     void actionCopy();
     void actionSave();

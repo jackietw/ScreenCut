@@ -1,6 +1,6 @@
 /**
  * SPDX-FileCopyrightText: 2026 Jackie <jackie.github@outlook.com>
- * SPDX-License-Identifier: LGPL-2.0-or-later
+ * SPDX-License-Identifier: LGPL-2.1-or-later
  */
 
 #ifndef CAPTURE_WINDOW_H
@@ -29,6 +29,7 @@ public:
 
     static CaptureMainWindow* instance();
     void showAboutOverlay();
+    bool isSettingEnabled(const QString& key) const;
 
 protected:
     void mousePressEvent(QMouseEvent* event) override;
@@ -48,7 +49,7 @@ private:
     void setupStyleSheet();
     QWidget* createImageTab();
     QWidget* createVideoTab();
-    void addSettingRow(QVBoxLayout* layout, const QString& labelText, bool isChecked);
+    void addSettingRow(QVBoxLayout* layout, const QString& labelText, bool isChecked, const QString& configKey = QString());
 
     static CaptureMainWindow* s_instance;
 

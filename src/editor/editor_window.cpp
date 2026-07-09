@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 Jackie <jackie.github@outlook.com>
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ */
+
 #include "editor_window.h"
 #include <QApplication>
 #include <QClipboard>
@@ -16,6 +21,7 @@
 #include <QCloseEvent>
 #include "../resources/IconUtils.h"
 #include "../core/common_project.h"
+#include "../widgets/common_notification.h"
 
 namespace ScreenCut {
 
@@ -256,6 +262,7 @@ void EditorMainWindow::copyToClipboard() {
     QApplication::clipboard()->setPixmap(finalPix);
     qDebug() << "[EditorMainWindow] Copied image to clipboard. Size:" << finalPix.size();
     statusBar()->showMessage("✅ Image successfully copied to clipboard!", 3000);
+    Notification::showMessage("Image copied to clipboard!", 2500);
 }
 
 void EditorMainWindow::saveToFile() {
@@ -288,6 +295,7 @@ void EditorMainWindow::saveToFile() {
             m_isTempFile = false;
             setWindowTitle(QString("ScreenCut Editor — %1").arg(QFileInfo(fileName).fileName()));
             statusBar()->showMessage(QString("✅ Saved to %1").arg(fileName), 4000);
+            Notification::showMessage(QString("Saved & copied:\n%1").arg(QFileInfo(fileName).fileName()), 3000);
         } else {
             qCritical() << "[EditorMainWindow] Failed to save file to location:" << fileName;
             QMessageBox::critical(this, "Save Error", "Failed to save project or image to specified location.");

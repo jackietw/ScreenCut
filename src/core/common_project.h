@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 Jackie <jackie.github@outlook.com>
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ */
+
 #ifndef COMMON_PROJECT_H
 #define COMMON_PROJECT_H
 

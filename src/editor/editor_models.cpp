@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 Jackie <jackie.github@outlook.com>
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ */
+
 #include "editor_models.h"
 #include <QtMath>
 #include <QFont>

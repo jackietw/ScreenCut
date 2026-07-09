@@ -49,19 +49,23 @@ ScreenCut/
 ├── README.md                 # Project documentation
 ├── src/
 │   ├── version.h             # Version definitions and compilation macros (global)
-│   ├── capture/              # [prefix: capture] Screen capture domain
-│   │   ├── capture_main.cpp  # Capture application entry point, High-DPI setup, and system tray manager
-│   │   ├── capture_window.h/.cpp # Liquid Glass overlay window and region selection canvas
+│   ├── main.cpp              # Capture application entry point (`ScreenCut.exe`)
+│   ├── capture/              # [prefix: capture_] Screen capture UI windows
+│   │   └── capture_window.h/.cpp # Main overlay window and region selection canvas
+│   ├── core/                 # Core engine and data structures
 │   │   ├── capture_engine.h/.cpp # 0ms screen caching, window boundary detection, and scroll stitching
-│   │   └── capture_toolbar.h/.cpp # Floating capture tool bar widget
-│   ├── editor/               # [prefix: editor] Non-destructive annotation editor domain
+│   │   └── common_project.h  # Dedicated library directory and .scut project JSON schema
+│   ├── editor/               # [prefix: editor_] Non-destructive annotation editor (`SCEditor.exe`)
 │   │   ├── editor_main.cpp   # Editor application standalone entry point
 │   │   ├── editor_window.h/.cpp # Editor main window, Undo/Redo history stack, cropping, and exporting
 │   │   └── editor_models.h/.cpp # Annotation layers: arrows, step sequence 123, mosaic, blur, text, etc.
-│   └── common/               # [prefix: common] Shared utilities and common UI components
-│       ├── common_project.h  # Dedicated library directory and .scut project JSON schema
-│       ├── common_pin.h/.cpp # Always-on-top floating image pin widget with quick clipboard/save actions
-│       └── common_switch.h/.cpp # Animated toggle switch widget
+│   └── widgets/              # Reusable UI widgets (`capture_` for capture-specific, `common_` for shared)
+│       ├── capture_toolbar.h/.cpp   # Floating capture tool bar widget
+│       ├── capture_countdown.h/.cpp # 5-second countdown widget with click-to-cancel
+│       ├── capture_pin.h/.cpp       # Always-on-top floating image pin widget with quick actions
+│       ├── capture_scroll.h/.cpp    # Auto-scrolling capture manager and border overlay
+│       ├── common_switch.h/.cpp     # Animated toggle switch widget
+│       └── common_notification.h/.cpp # Toast notification popup widget
 ```
 
 ---
@@ -93,7 +97,7 @@ cmake --build . --config Release
 
 # 3. Run standalone applications
 .\Release\ScreenCut.exe         # Background Capture Engine & Tray
-.\Release\ScreenCutEditor.exe   # Standalone Annotation Studio
+.\Release\SCEditor.exe          # Standalone Annotation Studio
 ```
 
 #### macOS (Apple Clang)
@@ -108,11 +112,14 @@ cmake --build . --config Release
 
 # 3. Run application bundles
 open ScreenCut.app              # Launch Capture Tray App
-open ScreenCutEditor.app        # Launch Annotation Studio
+open SCEditor.app               # Launch Annotation Studio
 ```
 
 ---
 
 ## 📄 License
 
-This project is open-sourced under the **GNU Lesser General Public License v2.1 or later (LGPL-2.1-or-later)**.
+This project is open-sourced under the **GNU Lesser General Public License v2.1 or later (LGPL-2.1-or-later)**. See the [LICENSE](file:///LICENSE) file for full license terms.
+
+### Third-Party Licenses
+* **Qt 6**: This software dynamically links against the Qt 6 Framework, licensed under the **GNU Lesser General Public License v3.0 (LGPL-3.0)**. Qt is a registered trademark of The Qt Company Ltd.

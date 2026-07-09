@@ -1,6 +1,6 @@
 /**
  * SPDX-FileCopyrightText: 2026 Jackie <jackie.github@outlook.com>
- * SPDX-License-Identifier: LGPL-2.0-or-later
+ * SPDX-License-Identifier: LGPL-2.1-or-later
  */
 
 #include "config.h"
@@ -123,12 +123,7 @@ bool Config::isDebugMode() {
     if (args.contains("--debug") || args.contains("-d")) {
         return true;
     }
-    // 2. Check environment variable
-    QString envDebug = qEnvironmentVariable("SCREENCUT_DEBUG").toLower();
-    if (envDebug == "1" || envDebug == "true") {
-        return true;
-    }
-    // 3. Check config.json
+    // 2. Check config.json
     return getValue("debug_mode", false).toBool();
 }
 

@@ -8,7 +8,7 @@ capture:
 	@cmake --build build --config Release --target ScreenCut
 
 editor:
-	@cmake --build build --config Release --target ScreenCutEditor
+	@cmake --build build --config Release --target SCEditor
 
 clean:
 	@cmake --build build --config Release --target clean

@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 Jackie <jackie.github@outlook.com>
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ */
+
 #include <QApplication>
 #include <QClipboard>
 #include <QSystemTrayIcon>
@@ -10,13 +15,20 @@
 #include <QStyle>
 #include <QSharedMemory>
 #include <QTimer>
+#include <QCommandLineParser>
+#include <QCommandLineOption>
 #include <QDebug>
+#include <cstdio>
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 #include "version.h"
 #include "config.h"
 #include "core/capture_engine.h"
 #include "core/common_project.h"
 #include "capture/capture_window.h"
 #include "resources/IconUtils.h"
+#include "widgets/common_notification.h"
 #include <QProcess>
 #include <QDir>
 #include <QDateTime>
@@ -32,6 +44,28 @@ int main(int argc, char *argv[]) {
     app.setOrganizationDomain(SCREENCUT_ORG_DOMAIN);
     app.setApplicationVersion(SCREENCUT_VERSION_STR);
     app.setQuitOnLastWindowClosed(false); // Keep running in background tray
+
+    QCommandLineParser parser;
+    parser.setApplicationDescription("ScreenCut - Native Screen Capture Tool");
+    QCommandLineOption versionOption(QStringList() << "v" << "version", "Displays version information.");
+    parser.addOption(versionOption);
+    parser.addHelpOption();
+    QCommandLineOption debugOption(QStringList() << "d" << "debug", "Enable debug logging output.");
+    parser.addOption(debugOption);
+    parser.process(app);
+
+    if (parser.isSet(versionOption)) {
+#ifdef Q_OS_WIN
+        if (AttachConsole(ATTACH_PARENT_PROCESS)) {
+            FILE* fp;
+            freopen_s(&fp, "CONOUT$", "w", stdout);
+            freopen_s(&fp, "CONOUT$", "w", stderr);
+        }
+#endif
+        printf("%s %s\n", SCREENCUT_APP_NAME, SCREENCUT_VERSION_STR);
+        fflush(stdout);
+        return 0;
+    }
 
     // Initialize global configuration and logging system
     Config::setupLogging();
@@ -98,7 +132,12 @@ int main(int argc, char *argv[]) {
         CaptureMainWindow::instance()->raise();
     });
     QObject::connect(regionAction, &QAction::triggered, []() {
-        CaptureEngine::instance()->startRegionCapture();
+        bool scrollCapture = CaptureMainWindow::instance() && CaptureMainWindow::instance()->isSettingEnabled("Scroll Capture");
+        if (scrollCapture) {
+            CaptureEngine::instance()->startScrollingCapture();
+        } else {
+            CaptureEngine::instance()->startRegionCapture();
+        }
     });
     QObject::connect(windowAction, &QAction::triggered, []() {
         CaptureEngine::instance()->startWindowCapture();
@@ -125,9 +164,49 @@ int main(int argc, char *argv[]) {
         }
     });
 
-    // 5. Connect capture completion to launch standalone ScreenCutEditor app via IPC
-    QObject::connect(CaptureEngine::instance(), &CaptureEngine::captureCompleted, [](const QPixmap& pixmap) {
+    // 5. Connect capture completion and edit requests to check Image tab toggles or launch editor
+    auto launchEditorFunc = [](const QString& scutFilePath) {
+        qDebug() << "Launching SCEditor for:" << scutFilePath;
+        QString editorPath = QDir(QCoreApplication::applicationDirPath()).filePath("SCEditor");
+#ifdef Q_OS_WIN
+        editorPath += ".exe";
+#endif
+        bool started = QProcess::startDetached(editorPath, { scutFilePath });
+        if (!started) {
+            started = QProcess::startDetached("SCEditor", { scutFilePath });
+        }
+        if (!started) {
+            QMessageBox::critical(nullptr, "ScreenCut Error", "Failed to launch standalone SCEditor application!");
+        }
+    };
+
+    auto restoreMainWindowFunc = []() {
+        if (CaptureMainWindow::instance()) {
+            qDebug() << "Restoring CaptureMainWindow automatically after capture completion or cancellation...";
+            CaptureMainWindow::instance()->showNormal();
+            CaptureMainWindow::instance()->activateWindow();
+            CaptureMainWindow::instance()->raise();
+        }
+    };
+
+    QObject::connect(CaptureEngine::instance(), &CaptureEngine::captureEdited, [launchEditorFunc, restoreMainWindowFunc](const QPixmap& pixmap) {
+        qDebug() << "Capture edited! Size:" << pixmap.size();
+        restoreMainWindowFunc();
+        if (!pixmap.isNull()) {
+            QString libraryDir = ScutProject::getLibraryDir();
+            QString scutFilePath = QDir(libraryDir).filePath(
+                QString("Capture_%1.scut").arg(QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss_zzz")));
+            if (ScutProject::saveImageAsScut(pixmap, scutFilePath)) {
+                launchEditorFunc(scutFilePath);
+            } else {
+                QMessageBox::critical(nullptr, "ScreenCut Error", "Failed to save capture as .scut in My ScreenCut Library!");
+            }
+        }
+    });
+
+    QObject::connect(CaptureEngine::instance(), &CaptureEngine::captureCompleted, [launchEditorFunc, restoreMainWindowFunc](const QPixmap& pixmap) {
         qDebug() << "Capture completed! Size:" << pixmap.size();
+        restoreMainWindowFunc();
         if (!pixmap.isNull()) {
             QString libraryDir = ScutProject::getLibraryDir();
             QString scutFilePath = QDir(libraryDir).filePath(
@@ -135,16 +214,20 @@ int main(int argc, char *argv[]) {
             
             if (ScutProject::saveImageAsScut(pixmap, scutFilePath)) {
                 qDebug() << "Saved capture to My ScreenCut Library .scut file for IPC:" << scutFilePath;
-                QString editorPath = QDir(QCoreApplication::applicationDirPath()).filePath("ScreenCutEditor");
-#ifdef Q_OS_WIN
-                editorPath += ".exe";
-#endif
-                bool started = QProcess::startDetached(editorPath, { scutFilePath });
-                if (!started) {
-                    started = QProcess::startDetached("ScreenCutEditor", { scutFilePath });
+                bool previewInEditor = CaptureMainWindow::instance() && CaptureMainWindow::instance()->isSettingEnabled("Preview in Editor");
+                bool copyToClipboard = CaptureMainWindow::instance() && CaptureMainWindow::instance()->isSettingEnabled("Copy to Clipboard");
+
+                if (copyToClipboard) {
+                    qDebug() << "Copy to Clipboard is enabled. Copying to clipboard...";
+                    QApplication::clipboard()->setPixmap(pixmap);
+                    Notification::showMessage("✅ Screenshot captured & copied to clipboard!", 2500);
                 }
-                if (!started) {
-                    QMessageBox::critical(nullptr, "ScreenCut Error", "Failed to launch standalone ScreenCutEditor application!");
+
+                if (previewInEditor) {
+                    qDebug() << "Preview in Editor is enabled. Launching SCEditor...";
+                    launchEditorFunc(scutFilePath);
+                } else if (!copyToClipboard) {
+                    Notification::showMessage(QString("✅ Screenshot saved to:\n%1").arg(scutFilePath), 3500);
                 }
             } else {
                 QMessageBox::critical(nullptr, "ScreenCut Error", "Failed to save capture as .scut in My ScreenCut Library!");
@@ -152,20 +235,25 @@ int main(int argc, char *argv[]) {
         }
     });
 
-    QObject::connect(CaptureEngine::instance(), &CaptureEngine::captureCopied, [&trayIcon](const QPixmap& pixmap) {
+    QObject::connect(CaptureEngine::instance(), &CaptureEngine::captureCopied, [restoreMainWindowFunc](const QPixmap& pixmap) {
         qDebug() << "Capture copied to clipboard! Size:" << pixmap.size();
+        restoreMainWindowFunc();
         QApplication::clipboard()->setPixmap(pixmap);
-        trayIcon.showMessage("ScreenCut", "✅ Screenshot copied to clipboard!", QSystemTrayIcon::Information, 2500);
+        Notification::showMessage("✅ Screenshot copied to clipboard!", 2500);
     });
 
-    QObject::connect(CaptureEngine::instance(), &CaptureEngine::captureSaved, [&trayIcon](const QString& filePath) {
+    QObject::connect(CaptureEngine::instance(), &CaptureEngine::captureSaved, [restoreMainWindowFunc](const QString& filePath) {
         qDebug() << "Capture saved to file:" << filePath;
-        trayIcon.showMessage("ScreenCut", QString("✅ Screenshot saved to:\n%1").arg(filePath), QSystemTrayIcon::Information, 3500);
+        restoreMainWindowFunc();
+        Notification::showMessage(QString("✅ Screenshot saved to:\n%1").arg(filePath), 3500);
     });
 
-    trayIcon.showMessage("ScreenCut Native Ready", 
-                         "ScreenCut 2.0 (C++ Qt6) is running in the background.\nUse Ctrl+Shift+A or click tray icon to capture screen!",
-                         QSystemTrayIcon::Information, 3000);
+    QObject::connect(CaptureEngine::instance(), &CaptureEngine::captureCancelled, [restoreMainWindowFunc]() {
+        qDebug() << "Capture cancelled by user.";
+        restoreMainWindowFunc();
+    });
+
+    Notification::showMessage("ScreenCut 2.0 Ready\nUse Ctrl+Shift+A or click tray icon to capture screen!", 3000);
 
     // 6. Show CaptureMainWindow on launch so user gets immediate visual feedback matching the Python prototype!
     QTimer::singleShot(100, []() {

@@ -1,10 +1,11 @@
 /**
  * SPDX-FileCopyrightText: 2026 Jackie <jackie.github@outlook.com>
- * SPDX-License-Identifier: LGPL-2.0-or-later
+ * SPDX-License-Identifier: LGPL-2.1-or-later
  */
 
 #include "capture_window.h"
 #include "../core/capture_engine.h"
+#include "../config.h"
 #include "../version.h"
 #include <QApplication>
 #include <QMessageBox>
@@ -245,12 +246,20 @@ void CaptureMainWindow::setupUi() {
     });
 }
 
-void CaptureMainWindow::addSettingRow(QVBoxLayout* layout, const QString& labelText, bool isChecked) {
+void CaptureMainWindow::addSettingRow(QVBoxLayout* layout, const QString& labelText, bool isChecked, const QString& configKey) {
+    QString key = configKey.isEmpty() ? labelText : configKey;
     QHBoxLayout* row = new QHBoxLayout();
     QLabel* lbl = new QLabel(labelText);
     SwitchWidget* toggle = new SwitchWidget();
-    toggle->setChecked(isChecked);
-    m_toggles[labelText] = toggle;
+    
+    bool savedVal = Config::getValue(key, isChecked).toBool();
+    toggle->setChecked(savedVal);
+    m_toggles[key] = toggle;
+
+    connect(toggle, &SwitchWidget::toggled, this, [key](bool checked) {
+        Config::setValue(key, checked);
+        qDebug() << "[CaptureMainWindow] Saved setting:" << key << "=" << checked;
+    });
 
     row->addWidget(lbl);
     row->addStretch();
@@ -270,6 +279,13 @@ void CaptureMainWindow::addSettingRow(QVBoxLayout* layout, const QString& labelT
     layout->addLayout(row);
 }
 
+bool CaptureMainWindow::isSettingEnabled(const QString& key) const {
+    if (m_toggles.contains(key)) {
+        return m_toggles.value(key)->isChecked();
+    }
+    return Config::getValue(key, false).toBool();
+}
+
 QWidget* CaptureMainWindow::createImageTab() {
     QWidget* tab = new QWidget();
     QHBoxLayout* layout = new QHBoxLayout(tab);
@@ -279,11 +295,11 @@ QWidget* CaptureMainWindow::createImageTab() {
     QVBoxLayout* settingsLayout = new QVBoxLayout();
     settingsLayout->setSpacing(12);
 
-    addSettingRow(settingsLayout, "Preview in Editor", false);
-    addSettingRow(settingsLayout, "Copy to Clipboard", true);
-    addSettingRow(settingsLayout, "Capture Cursor", false);
-    addSettingRow(settingsLayout, "5 Second Delay", false);
-    addSettingRow(settingsLayout, "Scroll Capture", false);
+    addSettingRow(settingsLayout, "Preview in Editor", false, "Preview in Editor");
+    addSettingRow(settingsLayout, "Copy to Clipboard", true, "Copy to Clipboard");
+    addSettingRow(settingsLayout, "Capture Cursor", false, "Image_Capture Cursor");
+    addSettingRow(settingsLayout, "5 Second Delay", false, "5 Second Delay");
+    addSettingRow(settingsLayout, "Scroll Capture", false, "Scroll Capture");
 
     settingsLayout->addStretch();
     layout->addLayout(settingsLayout, 2);
@@ -296,7 +312,7 @@ QWidget* CaptureMainWindow::createImageTab() {
     m_btnCapture->setCursor(Qt::PointingHandCursor);
     connect(m_btnCapture, &QPushButton::clicked, this, &CaptureMainWindow::onCaptureClicked);
 
-    QLabel* lblHotkey = new QLabel("Ctrl+Shift+P");
+    QLabel* lblHotkey = new QLabel("Ctrl+Shift+A");
     lblHotkey->setStyleSheet("color: #d8a040; font-size: 13px; font-weight: bold;");
     lblHotkey->setAlignment(Qt::AlignCenter);
 
@@ -319,9 +335,9 @@ QWidget* CaptureMainWindow::createVideoTab() {
     QVBoxLayout* settingsLayout = new QVBoxLayout();
     settingsLayout->setSpacing(15);
 
-    addSettingRow(settingsLayout, "Capture Cursor", true);
-    addSettingRow(settingsLayout, "Record Microphone", true);
-    addSettingRow(settingsLayout, "Record System Audio", true);
+    addSettingRow(settingsLayout, "Capture Cursor", true, "Video_Capture Cursor");
+    addSettingRow(settingsLayout, "Record Microphone", true, "Record Microphone");
+    addSettingRow(settingsLayout, "Record System Audio", true, "Record System Audio");
 
     settingsLayout->addStretch();
     layout->addLayout(settingsLayout, 2);
@@ -351,10 +367,11 @@ QWidget* CaptureMainWindow::createVideoTab() {
 void CaptureMainWindow::onCaptureClicked() {
     qDebug() << "[CaptureMainWindow] Capture button clicked. Hiding window...";
     hide();
-    // Check toggle states
-    bool scrollCapture = m_toggles.value("Scroll Capture") && m_toggles["Scroll Capture"]->isChecked();
+    bool scrollCapture = isSettingEnabled("Scroll Capture");
+    bool delay5s = isSettingEnabled("5 Second Delay");
+    int hideDelay = delay5s ? 0 : 200;
     
-    QTimer::singleShot(200, [scrollCapture]() {
+    QTimer::singleShot(hideDelay, [scrollCapture]() {
         if (scrollCapture) {
             qDebug() << "[CaptureMainWindow] Triggering Scroll Capture mode.";
             CaptureEngine::instance()->startScrollingCapture();
@@ -373,20 +390,20 @@ void CaptureMainWindow::onRecordClicked() {
 void CaptureMainWindow::onOpenEditorClicked() {
     qDebug() << "[CaptureMainWindow] Open Editor clicked. Launching standalone studio...";
     hide();
-    // Launch standalone ScreenCutEditor app without arguments
-    QString editorPath = QDir(QCoreApplication::applicationDirPath()).filePath("ScreenCutEditor");
+    // Launch standalone SCEditor app without arguments
+    QString editorPath = QDir(QCoreApplication::applicationDirPath()).filePath("SCEditor");
 #ifdef Q_OS_WIN
     editorPath += ".exe";
 #endif
     bool started = QProcess::startDetached(editorPath, QStringList());
     if (!started) {
-        started = QProcess::startDetached("ScreenCutEditor", QStringList());
+        started = QProcess::startDetached("SCEditor", QStringList());
     }
     if (!started) {
-        qCritical() << "[CaptureMainWindow] Failed to launch standalone ScreenCutEditor at path:" << editorPath;
-        QMessageBox::critical(this, "ScreenCut Error", "Failed to launch standalone ScreenCutEditor application!");
+        qCritical() << "[CaptureMainWindow] Failed to launch standalone SCEditor at path:" << editorPath;
+        QMessageBox::critical(this, "ScreenCut Error", "Failed to launch standalone SCEditor application!");
     } else {
-        qDebug() << "[CaptureMainWindow] Successfully launched ScreenCutEditor.";
+        qDebug() << "[CaptureMainWindow] Successfully launched SCEditor.";
     }
 }
 
@@ -437,8 +454,11 @@ void CaptureMainWindow::showAboutOverlay() {
     QLabel* subtitle = new QLabel("A simple and fast screen capture tool.");
     subtitle->setStyleSheet("color: #c0c5d0; font-size: 14px;");
 
-    QLabel* info = new QLabel(QString("Version: v%1 • LGPL-2.0 License").arg(SCREENCUT_VERSION_STR));
+    QLabel* info = new QLabel(QString("Version: v%1 • LGPL-2.1 License").arg(SCREENCUT_VERSION_STR));
     info->setStyleSheet("color: #8890a0; font-size: 12px; margin-top: 5px;");
+
+    QLabel* qtInfo = new QLabel("Powered by Qt 6 (LGPL v3.0)");
+    qtInfo->setStyleSheet("color: #707888; font-size: 11px; margin-top: 2px;");
 
     QLabel* tip = new QLabel("(Click anywhere to close)");
     tip->setStyleSheet("color: #606875; font-size: 11px; font-style: italic; margin-top: 15px;");
@@ -446,6 +466,7 @@ void CaptureMainWindow::showAboutOverlay() {
     layout->addWidget(title, 0, Qt::AlignCenter);
     layout->addWidget(subtitle, 0, Qt::AlignCenter);
     layout->addWidget(info, 0, Qt::AlignCenter);
+    layout->addWidget(qtInfo, 0, Qt::AlignCenter);
     layout->addWidget(tip, 0, Qt::AlignCenter);
 
     overlay->show();

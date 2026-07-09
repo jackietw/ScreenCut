@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 Jackie <jackie.github@outlook.com>
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ */
+
 #ifndef EDITOR_WINDOW_H
 #define EDITOR_WINDOW_H
 

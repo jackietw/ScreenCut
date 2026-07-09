@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: 2026 Jackie <jackie.github@outlook.com>
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ */
+
 #ifndef CAPTURE_ENGINE_H
 #define CAPTURE_ENGINE_H
 
@@ -47,6 +52,8 @@ public:
     QPixmap captureRect(const QRect& rect);
     QPixmap captureScreen(QScreen* screen = nullptr);
     QPixmap captureAllScreens();
+    void drawCursorOnSnapshot(QPixmap& snapshot);
+    void drawCursorOnRegion(QPixmap& target, const QPoint& targetTopLeftGlobal, const QPoint& cursorGlobalPos);
 
     // Window detection capabilities
     WindowInfo findWindowAt(const QPoint& globalPos);
@@ -55,6 +62,7 @@ public:
 signals:
     void captureStarted();
     void captureCompleted(const QPixmap& capturedPixmap);
+    void captureEdited(const QPixmap& capturedPixmap);
     void captureCopied(const QPixmap& capturedPixmap);
     void captureSaved(const QString& filePath);
     void captureCancelled();
@@ -64,10 +72,13 @@ private:
     explicit CaptureEngine(QObject* parent = nullptr);
     ~CaptureEngine() override;
 
+    void doActualCapture(CaptureMode mode);
+
     static CaptureEngine* s_instance;
     QPixmap m_fullDesktopSnapshot;
     class RegionSelectWidget* m_overlayWidget = nullptr;
     CaptureMode m_currentMode = CaptureMode::Region;
+    bool m_isPendingCapture = false;
 };
 
 class CaptureToolBarWidget;
@@ -80,10 +91,13 @@ public:
     explicit RegionSelectWidget(const QPixmap& desktopSnapshot, CaptureMode mode, QWidget* parent = nullptr);
     ~RegionSelectWidget() override;
 
+    QPoint lastSelectionMousePos() const { return m_lastSelectionMousePos; }
+
 signals:
     void regionSelected(const QRect& rect);
     void copyRequested(const QRect& rect);
     void saveRequested(const QRect& rect);
+    void confirmRequested(const QRect& rect);
     void cancelled();
 
 protected:
@@ -106,6 +120,7 @@ private:
     void executeSave();
     void executePin();
     void executeEdit();
+    void executeConfirm();
 
     QPixmap m_desktopSnapshot;
     CaptureMode m_mode;
@@ -119,6 +134,7 @@ private:
     QRect m_dragStartRect;
     WindowInfo m_hoveredWindow;
     QRect m_selectedRect;
+    QPoint m_lastSelectionMousePos;
     CaptureToolBarWidget* m_toolbar = nullptr;
 };
 

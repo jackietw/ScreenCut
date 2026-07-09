@@ -1,6 +1,6 @@
 /**
  * SPDX-FileCopyrightText: 2026 Jackie <jackie.github@outlook.com>
- * SPDX-License-Identifier: LGPL-2.0-or-later
+ * SPDX-License-Identifier: LGPL-2.1-or-later
  */
 
 #include "capture_toolbar.h"
@@ -66,7 +66,7 @@ void CaptureToolBarWidget::setupUi() {
     layout->addWidget(btnCancel);
 
     // Done / Confirm
-    QToolButton* btnDone = createToolButton("Confirm & Copy (Enter)", SVG_DONE, SIGNAL(actionCopy()));
+    QToolButton* btnDone = createToolButton("Confirm Capture (Enter)", SVG_DONE, SIGNAL(actionConfirm()));
     layout->addWidget(btnDone);
 
     adjustSize();

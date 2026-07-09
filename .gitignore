@@ -25,6 +25,7 @@ cmake_install.cmake
 *.ninja
 
 # Qt generated files
+.qt/
 moc_*.cpp
 qrc_*.cpp
 ui_*.h
