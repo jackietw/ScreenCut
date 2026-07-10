@@ -17,6 +17,12 @@
 #include <QKeyEvent>
 #include <QTimer>
 #include <QFrame>
+#include <QThread>
+#include <QSize>
+#include <QString>
+#include <QProcess>
+#include <QImage>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -26,7 +32,8 @@ enum class CaptureMode {
     Region,
     Window,
     Scrolling,
-    FullScreen
+    FullScreen,
+    VideoRegion
 };
 
 struct WindowInfo {
@@ -38,6 +45,69 @@ struct WindowInfo {
 
 class RegionSelectWidget;
 
+struct HwEncoderInfo {
+    QString codec;
+    QString displayName;
+};
+
+class VideoCaptureWorker : public QObject {
+    Q_OBJECT
+public:
+    explicit VideoCaptureWorker(const QRect& rect, const QString& outputPath, bool captureCursor, QObject* parent = nullptr);
+    ~VideoCaptureWorker() override;
+
+public slots:
+    void startRecording();
+    void stopRecording();
+    void setCaptureCursor(bool capture) { m_captureCursor = capture; }
+
+signals:
+    void finished(const QString& outputPath);
+    void errorOccurred(const QString& err);
+
+private slots:
+    void captureFrame();
+
+private:
+    QString getFFmpegPath() const;
+    QString selectVideoCodec(bool& outIsHw) const;
+
+    QRect m_rect;
+    QSize m_targetSize;
+    QString m_outputPath;
+    bool m_captureCursor;
+    bool m_isRunning = false;
+    QTimer* m_timer = nullptr;
+    QProcess* m_ffmpegProcess = nullptr;
+    qint64 m_frameIntervalMs = 33; // ~30 FPS
+};
+
+class VideoRecorder : public QObject {
+    Q_OBJECT
+public:
+    explicit VideoRecorder(QObject* parent = nullptr);
+    ~VideoRecorder() override;
+
+    static QString getFFmpegPath();
+    static QList<HwEncoderInfo> detectAvailableHwEncoders(bool forceRefresh = false);
+    static bool isHwDetected();
+    static void detectAvailableHwEncodersAsync(std::function<void(const QList<HwEncoderInfo>&)> callback = nullptr, bool forceRefresh = false);
+
+    bool isRecording() const { return m_isRecording; }
+    VideoCaptureWorker* worker() const { return m_worker; }
+    void start(const QRect& rect);
+    void stop();
+
+signals:
+    void recordingFinished(const QString& outputPath);
+    void recordingError(const QString& err);
+
+private:
+    bool m_isRecording = false;
+    QThread* m_workerThread = nullptr;
+    VideoCaptureWorker* m_worker = nullptr;
+};
+
 class CaptureEngine : public QObject {
     Q_OBJECT
 public:
@@ -45,9 +115,14 @@ public:
 
     void startCapture(CaptureMode mode = CaptureMode::Region);
     void startRegionCapture();
+    void startVideoRegionCapture();
     void startWindowCapture();
     void startScrollingCapture();
     void startFullScreenCapture();
+
+    void startVideoRecord(const QRect& rect);
+    void stopVideoRecord();
+    VideoRecorder* videoRecorder() const { return m_videoRecorder; }
 
     QPixmap captureRect(const QRect& rect);
     QPixmap captureScreen(QScreen* screen = nullptr);
@@ -68,6 +143,24 @@ signals:
     void captureCancelled();
     void scrollingProgress(int currentHeight, int maxExpectedHeight);
 
+public:
+    void initSessionStateFromConfig();
+    bool isSessionCursorEnabled() const { return m_sessionCursorEnabled; }
+    void setSessionCursorEnabled(bool enabled);
+    bool isSessionHighlightEnabled() const { return m_sessionCursorEnabled; }
+    bool isSessionAnimationEnabled() const { return m_sessionCursorEnabled; }
+    bool isSessionMicEnabled() const { return m_sessionMicEnabled; }
+    void setSessionMicEnabled(bool enabled);
+    bool isSessionSysAudioEnabled() const { return m_sessionSysAudioEnabled; }
+    void setSessionSysAudioEnabled(bool enabled);
+
+    bool isSessionEditorEnabled() const { return m_sessionEditorEnabled; }
+    void setSessionEditorEnabled(bool enabled) { m_sessionEditorEnabled = enabled; }
+    bool isSessionClipboardEnabled() const { return m_sessionClipboardEnabled; }
+    void setSessionClipboardEnabled(bool enabled) { m_sessionClipboardEnabled = enabled; }
+    bool isSessionImgCursorEnabled() const { return m_sessionImgCursorEnabled; }
+    void setSessionImgCursorEnabled(bool enabled) { m_sessionImgCursorEnabled = enabled; }
+
 private:
     explicit CaptureEngine(QObject* parent = nullptr);
     ~CaptureEngine() override;
@@ -77,11 +170,19 @@ private:
     static CaptureEngine* s_instance;
     QPixmap m_fullDesktopSnapshot;
     class RegionSelectWidget* m_overlayWidget = nullptr;
+    VideoRecorder* m_videoRecorder = nullptr;
     CaptureMode m_currentMode = CaptureMode::Region;
     bool m_isPendingCapture = false;
+    bool m_sessionCursorEnabled = true;
+    bool m_sessionMicEnabled = true;
+    bool m_sessionSysAudioEnabled = true;
+    bool m_sessionEditorEnabled = true;
+    bool m_sessionClipboardEnabled = true;
+    bool m_sessionImgCursorEnabled = false;
 };
 
 class CaptureToolBarWidget;
+class CaptureStatusWidget;
 class PinWidget;
 
 // Overlay widget for selecting capture regions and windows
@@ -95,6 +196,7 @@ public:
 
 signals:
     void regionSelected(const QRect& rect);
+    void videoRegionSelected(const QRect& rect);
     void copyRequested(const QRect& rect);
     void saveRequested(const QRect& rect);
     void confirmRequested(const QRect& rect);
@@ -121,11 +223,19 @@ private:
     void executePin();
     void executeEdit();
     void executeConfirm();
+    void ensureToolbarAndShow();
+
+    void setVideoRecordingActive(bool active);
+    void startVideoCountdown();
 
     QPixmap m_desktopSnapshot;
     CaptureMode m_mode;
     bool m_isSelecting = false;
     bool m_selectionConfirmed = false;
+    bool m_isVideoRecordingActive = false;
+    bool m_isCountingDown = false;
+    int m_countdownValue = 3;
+    QTimer* m_countdownTimer = nullptr;
     int m_activeHandle = 0; // 0=None, 1-8=Handles, 9=Move
     QPoint m_startPoint;
     QPoint m_endPoint;
@@ -136,6 +246,8 @@ private:
     QRect m_selectedRect;
     QPoint m_lastSelectionMousePos;
     CaptureToolBarWidget* m_toolbar = nullptr;
+    CaptureStatusWidget* m_statusCard = nullptr;
+    class VideoBorderOverlay* m_borderOverlay = nullptr;
 };
 
 } // namespace ScreenCut

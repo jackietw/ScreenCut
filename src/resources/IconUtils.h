@@ -14,6 +14,7 @@ namespace ScreenCut {
 
 // SVG Definitions matching Python prototype
 extern const QString SVG_RECORD;
+extern const QString SVG_PAUSE;
 extern const QString SVG_STOP;
 extern const QString SVG_CANCEL;
 extern const QString SVG_DONE;

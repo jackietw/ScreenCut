@@ -29,7 +29,9 @@ public:
 
     static CaptureMainWindow* instance();
     void showAboutOverlay();
+    void showPreferencesOverlay();
     bool isSettingEnabled(const QString& key) const;
+    void setSettingEnabled(const QString& key, bool enabled);
 
 protected:
     void mousePressEvent(QMouseEvent* event) override;
@@ -65,6 +67,7 @@ private:
     QPoint m_dragPos;
     bool m_isDragging = false;
     QWidget* m_aboutOverlay = nullptr;
+    QWidget* m_prefOverlay = nullptr;
 };
 
 } // namespace ScreenCut

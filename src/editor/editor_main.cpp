@@ -36,16 +36,18 @@ int main(int argc, char *argv[]) {
     parser.addPositionalArgument("file", "Image file to open.");
     QCommandLineOption debugOption(QStringList() << "d" << "debug", "Enable debug logging output.");
     parser.addOption(debugOption);
+
+#ifdef Q_OS_WIN
+    if (argc > 1 && AttachConsole(ATTACH_PARENT_PROCESS)) {
+        FILE* fp;
+        freopen_s(&fp, "CONOUT$", "w", stdout);
+        freopen_s(&fp, "CONOUT$", "w", stderr);
+    }
+#endif
+
     parser.process(app);
 
     if (parser.isSet(versionOption)) {
-#ifdef Q_OS_WIN
-        if (AttachConsole(ATTACH_PARENT_PROCESS)) {
-            FILE* fp;
-            freopen_s(&fp, "CONOUT$", "w", stdout);
-            freopen_s(&fp, "CONOUT$", "w", stderr);
-        }
-#endif
         printf("%s Editor %s\n", SCREENCUT_APP_NAME, SCREENCUT_VERSION_STR);
         fflush(stdout);
         return 0;

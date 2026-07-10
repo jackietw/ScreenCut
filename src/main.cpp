@@ -52,16 +52,18 @@ int main(int argc, char *argv[]) {
     parser.addHelpOption();
     QCommandLineOption debugOption(QStringList() << "d" << "debug", "Enable debug logging output.");
     parser.addOption(debugOption);
+
+#ifdef Q_OS_WIN
+    if (argc > 1 && AttachConsole(ATTACH_PARENT_PROCESS)) {
+        FILE* fp;
+        freopen_s(&fp, "CONOUT$", "w", stdout);
+        freopen_s(&fp, "CONOUT$", "w", stderr);
+    }
+#endif
+
     parser.process(app);
 
     if (parser.isSet(versionOption)) {
-#ifdef Q_OS_WIN
-        if (AttachConsole(ATTACH_PARENT_PROCESS)) {
-            FILE* fp;
-            freopen_s(&fp, "CONOUT$", "w", stdout);
-            freopen_s(&fp, "CONOUT$", "w", stderr);
-        }
-#endif
         printf("%s %s\n", SCREENCUT_APP_NAME, SCREENCUT_VERSION_STR);
         fflush(stdout);
         return 0;
@@ -116,9 +118,11 @@ int main(int argc, char *argv[]) {
     trayMenu->addAction(fullScreenAction);
     trayMenu->addSeparator();
 
+    QAction* prefAction = new QAction("⚙️ Preferences...", trayMenu);
     QAction* aboutAction = new QAction("ℹ️ About ScreenCut...", trayMenu);
     QAction* quitAction = new QAction("❌ Exit", trayMenu);
 
+    trayMenu->addAction(prefAction);
     trayMenu->addAction(aboutAction);
     trayMenu->addAction(quitAction);
 
@@ -147,6 +151,12 @@ int main(int argc, char *argv[]) {
     });
     QObject::connect(fullScreenAction, &QAction::triggered, []() {
         CaptureEngine::instance()->startFullScreenCapture();
+    });
+    QObject::connect(prefAction, &QAction::triggered, []() {
+        CaptureMainWindow::instance()->show();
+        CaptureMainWindow::instance()->activateWindow();
+        CaptureMainWindow::instance()->raise();
+        CaptureMainWindow::instance()->showPreferencesOverlay();
     });
     QObject::connect(aboutAction, &QAction::triggered, []() {
         CaptureMainWindow::instance()->show();
@@ -214,8 +224,8 @@ int main(int argc, char *argv[]) {
             
             if (ScutProject::saveImageAsScut(pixmap, scutFilePath)) {
                 qDebug() << "Saved capture to My ScreenCut Library .scut file for IPC:" << scutFilePath;
-                bool previewInEditor = CaptureMainWindow::instance() && CaptureMainWindow::instance()->isSettingEnabled("Preview in Editor");
-                bool copyToClipboard = CaptureMainWindow::instance() && CaptureMainWindow::instance()->isSettingEnabled("Copy to Clipboard");
+                bool previewInEditor = CaptureEngine::instance()->isSessionEditorEnabled();
+                bool copyToClipboard = CaptureEngine::instance()->isSessionClipboardEnabled();
 
                 if (copyToClipboard) {
                     qDebug() << "Copy to Clipboard is enabled. Copying to clipboard...";
@@ -253,7 +263,7 @@ int main(int argc, char *argv[]) {
         restoreMainWindowFunc();
     });
 
-    Notification::showMessage("ScreenCut 2.0 Ready\nUse Ctrl+Shift+A or click tray icon to capture screen!", 3000);
+    Notification::showMessage(QString("%1 Ready\nClick tray icon to capture screen!").arg(SCREENCUT_APP_NAME), 3000);
 
     // 6. Show CaptureMainWindow on launch so user gets immediate visual feedback matching the Python prototype!
     QTimer::singleShot(100, []() {

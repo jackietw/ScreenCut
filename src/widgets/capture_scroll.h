@@ -55,18 +55,18 @@ private:
     QPushButton* m_btnCancel;
 };
 
-class ScrollCaptureManager : public QWidget {
+class ScrollCaptureManager : public QObject {
     Q_OBJECT
 public:
-    explicit ScrollCaptureManager(const QRect& logicalRect, QWidget* parent = nullptr);
+    explicit ScrollCaptureManager(const QRect& logicalRect, QObject* parent = nullptr);
     ~ScrollCaptureManager() override;
+
+    // Show and activate the floating control widget
+    void show();
 
 signals:
     void completed(const QPixmap& stitchedPixmap);
     void cancelled();
-
-protected:
-    void closeEvent(QCloseEvent* event) override;
 
 private slots:
     void onProcessFrame();
@@ -82,6 +82,7 @@ private:
     qreal m_ratio;
     QTimer* m_timer;
     ScrollBorderOverlay* m_borderOverlay;
+    QWidget* m_controlWidget = nullptr;  // Floating control UI (preview + toolbar)
     QLabel* m_previewLabel;
     ScrollCaptureToolbar* m_toolbar;
 

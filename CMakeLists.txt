@@ -40,6 +40,7 @@ set(SHARED_SOURCES
     src/config.h
     src/config.cpp
     src/core/common_project.h
+    src/platform/platform.h
     src/widgets/common_switch.h
     src/widgets/common_switch.cpp
     src/widgets/common_notification.h
@@ -47,6 +48,12 @@ set(SHARED_SOURCES
     src/resources/IconUtils.h
     src/resources/IconUtils.cpp
 )
+
+if(WIN32)
+    list(APPEND SHARED_SOURCES src/platform/platform_win.cpp)
+else()
+    list(APPEND SHARED_SOURCES src/platform/platform_mac.cpp)
+endif()
 
 # Capture application sources
 set(CAPTURE_SOURCES
@@ -61,6 +68,8 @@ set(CAPTURE_SOURCES
     src/widgets/capture_pin.cpp
     src/widgets/capture_scroll.h
     src/widgets/capture_scroll.cpp
+    src/widgets/capture_status.h
+    src/widgets/capture_status.cpp
     src/capture/capture_window.h
     src/capture/capture_window.cpp
     ${SHARED_SOURCES}
@@ -78,16 +87,38 @@ set(EDITOR_SOURCES
 
 # Platform specific configurations
 if(WIN32)
-    add_executable(${PROJECT_NAME} ${CAPTURE_SOURCES})
-    add_executable(SCEditor ${EDITOR_SOURCES})
+    add_executable(${PROJECT_NAME} WIN32 ${CAPTURE_SOURCES})
+    add_executable(SCEditor WIN32 ${EDITOR_SOURCES})
 elseif(APPLE)
     add_executable(${PROJECT_NAME} MACOSX_BUNDLE ${CAPTURE_SOURCES})
     add_executable(SCEditor MACOSX_BUNDLE ${EDITOR_SOURCES})
-    set_target_properties(${PROJECT_NAME} SCEditor PROPERTIES
+    set_target_properties(${PROJECT_NAME} PROPERTIES
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.screencut.app"
         MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
         MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
+        # macOS 10.15+ : provide NSScreenCaptureDescription & NSMicrophoneUsageDescription
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/platform/macos/Info.plist"
     )
+    set_target_properties(SCEditor PROPERTIES
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.screencut.editor"
+        MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
+        MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/platform/macos/Info.plist"
+    )
+    # Link Apple system frameworks required for screen capture, window enumeration, and cursor rendering
+    target_link_libraries(${PROJECT_NAME} PRIVATE
+        "-framework Cocoa"
+        "-framework AppKit"
+        "-framework CoreGraphics"
+        "-framework CoreMedia"
+        "-framework CoreVideo"
+        "-framework IOKit"
+        "-framework AVFoundation"
+    )
+    # ScreenCaptureKit is only available from macOS 12.3+; link conditionally
+    if(CMAKE_OSX_DEPLOYMENT_TARGET VERSION_GREATER_EQUAL "12.3")
+        target_link_libraries(${PROJECT_NAME} PRIVATE "-framework ScreenCaptureKit")
+    endif()
 else()
     add_executable(${PROJECT_NAME} ${CAPTURE_SOURCES})
     add_executable(SCEditor ${EDITOR_SOURCES})
@@ -132,15 +163,51 @@ if(WIN32)
     endif()
 elseif(APPLE)
     # Automatically deploy Qt Frameworks and plugins for macOS application bundles (Apple Clang)
-    find_program(MACDEPLOYQT_EXECUTABLE macdeployqt HINTS "$ENV{HOME}/Qt/6.8.1/macos/bin" "$ENV{HOME}/Qt/6.8.0/macos/bin" "$ENV{HOME}/Qt/6.7.2/macos/bin" "/opt/homebrew/opt/qt/bin" "/usr/local/opt/qt/bin" "${Qt6_DIR}/../../../bin")
+    # Hints cover: Qt Installer default, Apple Silicon Homebrew, Intel Homebrew, and fallback from Qt6_DIR
+    find_program(MACDEPLOYQT_EXECUTABLE macdeployqt
+        HINTS
+            "$ENV{HOME}/Qt/6.8.1/macos/bin"
+            "$ENV{HOME}/Qt/6.8.0/macos/bin"
+            "$ENV{HOME}/Qt/6.7.2/macos/bin"
+            "/opt/homebrew/opt/qt/bin"    # Apple Silicon Homebrew
+            "/usr/local/opt/qt/bin"       # Intel x86 Homebrew
+            "/usr/local/opt/qt@6/bin"     # Intel x86 Homebrew (versioned)
+            "${Qt6_DIR}/../../../bin"
+    )
+    # FFmpeg: used at runtime for video recording (not linked at compile-time, spawned as subprocess)
+    # Detect brew-installed ffmpeg for developers to verify PATH at configure time
+    find_program(FFMPEG_EXECUTABLE ffmpeg
+        HINTS
+            "/opt/homebrew/bin"           # Apple Silicon Homebrew
+            "/usr/local/bin"              # Intel x86 Homebrew / manual install
+    )
+    if(FFMPEG_EXECUTABLE)
+        message(STATUS "[ScreenCut] ffmpeg found at: ${FFMPEG_EXECUTABLE} (will be used at runtime for video recording)")
+    else()
+        message(WARNING "[ScreenCut] ffmpeg NOT found. Video recording will not work. Install via: brew install ffmpeg")
+    endif()
+
     if(MACDEPLOYQT_EXECUTABLE)
         add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-            COMMAND "${MACDEPLOYQT_EXECUTABLE}" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/../.." -always-overwrite
+            COMMAND "${MACDEPLOYQT_EXECUTABLE}" "${CMAKE_BINARY_DIR}/ScreenCut.app" -always-overwrite
             COMMENT "Deploying Qt Frameworks and Bundles for Capture app (Apple Clang / macOS)..."
         )
+        # Code-sign with entitlements (required for screen recording permission on macOS 10.15+)
+        # Uses '-' (ad-hoc signing) for local dev; replace with Developer ID for distribution.
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND codesign --force --deep --sign "-"
+                    --entitlements "${CMAKE_SOURCE_DIR}/platform/macos/ScreenCut.entitlements"
+                    "${CMAKE_BINARY_DIR}/ScreenCut.app"
+            COMMENT "Code-signing ScreenCut.app with Screen Recording entitlements..."
+        )
         add_custom_command(TARGET SCEditor POST_BUILD
-            COMMAND "${MACDEPLOYQT_EXECUTABLE}" "$<TARGET_FILE_DIR:SCEditor>/../.." -always-overwrite
+            COMMAND "${MACDEPLOYQT_EXECUTABLE}" "${CMAKE_BINARY_DIR}/SCEditor.app" -always-overwrite
             COMMENT "Deploying Qt Frameworks and Bundles for Editor app (Apple Clang / macOS)..."
+        )
+        add_custom_command(TARGET SCEditor POST_BUILD
+            COMMAND codesign --force --deep --sign "-"
+                    "${CMAKE_BINARY_DIR}/SCEditor.app"
+            COMMENT "Code-signing SCEditor.app..."
         )
     endif()
 endif()

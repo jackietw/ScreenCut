@@ -30,6 +30,7 @@ public:
     static QJsonValue getValue(const QString& key, const QJsonValue& defaultValue = QJsonValue());
     static void setValue(const QString& key, const QJsonValue& value);
 
+    static bool isCliDebugMode();
     static bool isDebugMode();
     static void setDebugMode(bool enabled);
 

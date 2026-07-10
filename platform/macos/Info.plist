@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  macOS Info.plist additions for ScreenCut (used by CMakeLists via MACOSX_BUNDLE_INFO_PLIST)
+  Supplies required NSUsageDescription strings for macOS permission dialogs.
+  On macOS 10.15+, QScreen::grabWindow and audio capture require explicit user authorization.
+-->
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>ScreenCut</string>
+    <key>CFBundleDisplayName</key>
+    <string>ScreenCut</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.screencut.app</string>
+    <key>CFBundleVersion</key>
+    <string>1.0.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleExecutable</key>
+    <string>ScreenCut</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>10.15</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSSupportsAutomaticGraphicsSwitching</key>
+    <true/>
+
+    <!-- =========================================================== -->
+    <!-- Screen Recording Permission (macOS 10.15+ Catalina+)        -->
+    <!-- Required for QScreen::grabWindow and system screen capture  -->
+    <!-- =========================================================== -->
+    <key>NSScreenCaptureDescription</key>
+    <string>ScreenCut needs screen recording permission to capture screenshots and record video of your screen.</string>
+
+    <!-- =========================================================== -->
+    <!-- Microphone Permission                                        -->
+    <!-- Required for recording microphone audio during video capture -->
+    <!-- =========================================================== -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>ScreenCut needs microphone access to record audio along with your screen recordings.</string>
+</dict>
+</plist>

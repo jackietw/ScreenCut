@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- macOS Entitlements for ScreenCut (Capture App)                                          -->
+<!-- Required to allow screen recording and microphone/audio capture on macOS 10.15+         -->
+<plist version="1.0">
+<dict>
+    <!-- Hardened Runtime: Allow JIT (needed by Qt's JavaScript engine in some builds)        -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <!-- Screen Recording: Required for QScreen::grabWindow and system screen capture         -->
+    <key>com.apple.security.screen-capture</key>
+    <true/>
+    <!-- Microphone: Required for audio recording via ffmpeg/AVFoundation                    -->
+    <key>com.apple.security.device.microphone</key>
+    <true/>
+    <!-- Audio Input (system audio via aggregate device)                                     -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+</dict>
+</plist>

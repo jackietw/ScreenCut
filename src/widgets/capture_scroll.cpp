@@ -16,9 +16,7 @@
 #include <cmath>
 #include <algorithm>
 
-#ifdef Q_OS_WIN
-#include <windows.h>
-#endif
+#include "../platform/platform.h"
 
 namespace ScreenCut {
 
@@ -35,16 +33,7 @@ ScrollBorderOverlay::ScrollBorderOverlay(const QRect& logicalRect, QWidget* pare
     setAttribute(Qt::WA_TranslucentBackground);
     setAttribute(Qt::WA_ShowWithoutActivating);
 
-#ifdef Q_OS_WIN
-#ifndef WDA_EXCLUDEFROMCAPTURE
-#define WDA_EXCLUDEFROMCAPTURE 0x00000011
-#endif
-    try {
-        SetWindowDisplayAffinity(reinterpret_cast<HWND>(winId()), WDA_EXCLUDEFROMCAPTURE);
-    } catch (...) {
-        qDebug() << "[ScrollBorderOverlay] SetWindowDisplayAffinity failed.";
-    }
-#endif
+    Platform::excludeWindowFromCapture(winId());
 
     QScreen* screen = QGuiApplication::screenAt(logicalRect.center());
     if (!screen) screen = QGuiApplication::primaryScreen();
@@ -149,21 +138,23 @@ ScrollCaptureToolbar::~ScrollCaptureToolbar() = default;
 
 // --- ScrollCaptureManager Implementation ---
 
-ScrollCaptureManager::ScrollCaptureManager(const QRect& logicalRect, QWidget* parent)
-    : QWidget(parent)
+ScrollCaptureManager::ScrollCaptureManager(const QRect& logicalRect, QObject* parent)
+    : QObject(parent)
     , m_logicalRect(logicalRect)
     , m_currentY(0)
 {
-    setWindowFlags(Qt::WindowStaysOnTopHint | Qt::FramelessWindowHint | Qt::Tool | Qt::NoDropShadowWindowHint);
-    setAttribute(Qt::WA_TranslucentBackground);
-    setAttribute(Qt::WA_ShowWithoutActivating);
+    // Build the floating control UI as a standalone top-level QWidget
+    m_controlWidget = new QWidget(nullptr);
+    m_controlWidget->setWindowFlags(Qt::WindowStaysOnTopHint | Qt::FramelessWindowHint | Qt::Tool | Qt::NoDropShadowWindowHint);
+    m_controlWidget->setAttribute(Qt::WA_TranslucentBackground);
+    m_controlWidget->setAttribute(Qt::WA_ShowWithoutActivating);
 
-    excludeFromCapture(winId());
+    excludeFromCapture(m_controlWidget->winId());
 
-    QVBoxLayout* layout = new QVBoxLayout(this);
+    QVBoxLayout* layout = new QVBoxLayout(m_controlWidget);
     layout->setContentsMargins(10, 10, 10, 10);
 
-    QWidget* bg = new QWidget(this);
+    QWidget* bg = new QWidget(m_controlWidget);
     bg->setObjectName("ScrollBg");
     bg->setStyleSheet("#ScrollBg { background-color: #2b2b2b; border: 1px solid #555555; border-radius: 8px; }");
     QHBoxLayout* bgLayout = new QHBoxLayout(bg);
@@ -182,9 +173,9 @@ ScrollCaptureManager::ScrollCaptureManager(const QRect& logicalRect, QWidget* pa
     bgLayout->addWidget(m_toolbar);
     layout->addWidget(bg);
 
-    adjustSize();
-    int tw = width();
-    int th = height();
+    m_controlWidget->adjustSize();
+    int tw = m_controlWidget->width();
+    int th = m_controlWidget->height();
 
     QScreen* screen = QGuiApplication::screenAt(logicalRect.center());
     if (!screen) screen = QGuiApplication::primaryScreen();
@@ -208,7 +199,7 @@ ScrollCaptureManager::ScrollCaptureManager(const QRect& logicalRect, QWidget* pa
     if (x < sg.left() + 5) x = sg.left() + 5;
     else if (x + tw > sg.right() - 5) x = sg.right() - tw - 5;
 
-    move(x, y);
+    m_controlWidget->move(x, y);
 
     m_borderOverlay = new ScrollBorderOverlay(logicalRect);
     m_borderOverlay->show();
@@ -223,27 +214,30 @@ ScrollCaptureManager::ScrollCaptureManager(const QRect& logicalRect, QWidget* pa
     m_timer->start();
 }
 
+void ScrollCaptureManager::show() {
+    if (m_controlWidget) {
+        m_controlWidget->show();
+    }
+}
+
 ScrollCaptureManager::~ScrollCaptureManager() {
+    if (m_timer && m_timer->isActive()) {
+        m_timer->stop();
+    }
     if (m_borderOverlay) {
         m_borderOverlay->close();
         m_borderOverlay->deleteLater();
         m_borderOverlay = nullptr;
     }
+    if (m_controlWidget) {
+        m_controlWidget->close();
+        m_controlWidget->deleteLater();
+        m_controlWidget = nullptr;
+    }
 }
 
 void ScrollCaptureManager::excludeFromCapture(WId winId) {
-#ifdef Q_OS_WIN
-#ifndef WDA_EXCLUDEFROMCAPTURE
-#define WDA_EXCLUDEFROMCAPTURE 0x00000011
-#endif
-    try {
-        SetWindowDisplayAffinity(reinterpret_cast<HWND>(winId), WDA_EXCLUDEFROMCAPTURE);
-    } catch (...) {
-        qDebug() << "[ScrollCaptureManager] SetWindowDisplayAffinity failed.";
-    }
-#else
-    Q_UNUSED(winId);
-#endif
+    Platform::excludeWindowFromCapture(winId);
 }
 
 QImage ScrollCaptureManager::grabFrame() {
@@ -451,16 +445,6 @@ void ScrollCaptureManager::updatePreview() {
     }
 }
 
-void ScrollCaptureManager::closeEvent(QCloseEvent* event) {
-    if (m_timer && m_timer->isActive()) {
-        m_timer->stop();
-    }
-    if (m_borderOverlay) {
-        m_borderOverlay->close();
-    }
-    QWidget::closeEvent(event);
-}
-
 void ScrollCaptureManager::onFinishCapture() {
     if (m_timer && m_timer->isActive()) {
         m_timer->stop();
@@ -472,8 +456,13 @@ void ScrollCaptureManager::onFinishCapture() {
         m_borderOverlay->deleteLater();
         m_borderOverlay = nullptr;
     }
-    close();
+    if (m_controlWidget) {
+        m_controlWidget->close();
+        m_controlWidget->deleteLater();
+        m_controlWidget = nullptr;
+    }
     emit completed(finalPix);
+    deleteLater();
 }
 
 void ScrollCaptureManager::onCancelCapture() {
@@ -485,8 +474,13 @@ void ScrollCaptureManager::onCancelCapture() {
         m_borderOverlay->deleteLater();
         m_borderOverlay = nullptr;
     }
-    close();
+    if (m_controlWidget) {
+        m_controlWidget->close();
+        m_controlWidget->deleteLater();
+        m_controlWidget = nullptr;
+    }
     emit cancelled();
+    deleteLater();
 }
 
 } // namespace ScreenCut

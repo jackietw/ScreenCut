@@ -117,14 +117,13 @@ void Config::setValue(const QString& key, const QJsonValue& value) {
     saveConfig(obj);
 }
 
-bool Config::isDebugMode() {
-    // 1. Check command line arguments
+bool Config::isCliDebugMode() {
     QStringList args = QCoreApplication::arguments();
-    if (args.contains("--debug") || args.contains("-d")) {
-        return true;
-    }
-    // 2. Check config.json
-    return getValue("debug_mode", false).toBool();
+    return args.contains("--debug") || args.contains("-d");
+}
+
+bool Config::isDebugMode() {
+    return isCliDebugMode() || getValue("debug_mode", false).toBool();
 }
 
 void Config::setDebugMode(bool enabled) {
@@ -144,9 +143,9 @@ void Config::rotateLogsIfNeeded(const QString& logPath) {
 
 void Config::messageHandler(QtMsgType type, const QMessageLogContext& context, const QString& msg) {
     Q_UNUSED(context);
-    bool debugMode = isDebugMode();
-    if (!debugMode && type == QtDebugMsg) {
-        return; // Suppress debug messages when not in debug mode
+    bool detailedLogging = isDebugMode();
+    if (!detailedLogging && type == QtDebugMsg) {
+        return; // Suppress debug messages when not in detailed debug mode
     }
 
     QString levelStr;
@@ -161,7 +160,7 @@ void Config::messageHandler(QtMsgType type, const QMessageLogContext& context, c
     QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz");
     QString formattedMsg = QString("%1 %2 %3").arg(timestamp, levelStr, msg);
 
-    // Write to screencut.log
+    // Write to screencut.log (both general logs, and detailed debug logs if detailedLogging is enabled)
     QMutexLocker locker(&s_mutex);
     QString logPath = getLogPath();
     rotateLogsIfNeeded(logPath);
@@ -173,8 +172,8 @@ void Config::messageHandler(QtMsgType type, const QMessageLogContext& context, c
     }
     locker.unlock();
 
-    // Also output to console
-    if (debugMode || type != QtDebugMsg) {
+    // Only output to terminal console when executed from command line (--debug / -d)
+    if (isCliDebugMode()) {
         fprintf(stderr, "%s\n", formattedMsg.toLocal8Bit().constData());
         fflush(stderr);
     }
