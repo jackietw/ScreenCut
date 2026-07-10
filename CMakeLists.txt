@@ -23,12 +23,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Add Qt search path automatically if not specified
 if(WIN32 AND NOT DEFINED CMAKE_PREFIX_PATH AND NOT DEFINED Qt6_DIR)
     list(APPEND CMAKE_PREFIX_PATH "C:/Qt/6.8.3/msvc2022_64" "C:/Qt/6.8.0/msvc2022_64")
 elseif(APPLE AND NOT DEFINED CMAKE_PREFIX_PATH AND NOT DEFINED Qt6_DIR)
-    list(APPEND CMAKE_PREFIX_PATH "$ENV{HOME}/Qt/6.8.1/macos" "$ENV{HOME}/Qt/6.8.0/macos" "$ENV{HOME}/Qt/6.7.2/macos" "/opt/homebrew/opt/qt" "/usr/local/opt/qt")
+    list(APPEND CMAKE_PREFIX_PATH "$ENV{HOME}/Qt/6.8.3/macos" "$ENV{HOME}/Qt/6.8.1/macos" "$ENV{HOME}/Qt/6.8.0/macos" "$ENV{HOME}/Qt/6.7.2/macos" "/opt/homebrew/opt/qt" "/usr/local/opt/qt")
 endif()
 
 # Find Qt6 components
@@ -93,6 +94,7 @@ elseif(APPLE)
     add_executable(${PROJECT_NAME} MACOSX_BUNDLE ${CAPTURE_SOURCES})
     add_executable(SCEditor MACOSX_BUNDLE ${EDITOR_SOURCES})
     set_target_properties(${PROJECT_NAME} PROPERTIES
+        MACOSX_BUNDLE_BUNDLE_NAME "ScreenCut"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.screencut.app"
         MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
         MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
@@ -100,6 +102,7 @@ elseif(APPLE)
         MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/platform/macos/Info.plist"
     )
     set_target_properties(SCEditor PROPERTIES
+        MACOSX_BUNDLE_BUNDLE_NAME "SCEditor"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.screencut.editor"
         MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
         MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
@@ -152,6 +155,12 @@ if(WIN32)
     # Automatically deploy Qt DLLs and platform plugins after build (Windows MSVC)
     find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "C:/Qt/6.8.1/msvc2022_64/bin" "C:/Qt/6.8.0/msvc2022_64/bin" "C:/Qt/6.7.2/msvc2022_64/bin" "${Qt6_DIR}/../../../bin")
     if(WINDEPLOYQT_EXECUTABLE)
+        if(FFMPEG_EXECUTABLE)
+            add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FFMPEG_EXECUTABLE}" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/ffmpeg.exe"
+                COMMENT "Bundling ffmpeg.exe into target directory..."
+            )
+        endif()
         add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
             COMMAND "${WINDEPLOYQT_EXECUTABLE}" --no-translations --no-opengl-sw --compiler-runtime "$<TARGET_FILE:${PROJECT_NAME}>"
             COMMENT "Deploying Qt runtime DLLs and platform plugins for Capture app (Windows)..."
@@ -188,8 +197,14 @@ elseif(APPLE)
     endif()
 
     if(MACDEPLOYQT_EXECUTABLE)
+        if(FFMPEG_EXECUTABLE)
+            add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FFMPEG_EXECUTABLE}" "${CMAKE_BINARY_DIR}/ScreenCut.app/Contents/MacOS/ffmpeg"
+                COMMENT "Bundling ffmpeg binary into ScreenCut.app/Contents/MacOS/..."
+            )
+        endif()
         add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-            COMMAND "${MACDEPLOYQT_EXECUTABLE}" "${CMAKE_BINARY_DIR}/ScreenCut.app" -always-overwrite
+            COMMAND "${MACDEPLOYQT_EXECUTABLE}" "${CMAKE_BINARY_DIR}/ScreenCut.app" -always-overwrite -no-codesign
             COMMENT "Deploying Qt Frameworks and Bundles for Capture app (Apple Clang / macOS)..."
         )
         # Code-sign with entitlements (required for screen recording permission on macOS 10.15+)
@@ -201,7 +216,7 @@ elseif(APPLE)
             COMMENT "Code-signing ScreenCut.app with Screen Recording entitlements..."
         )
         add_custom_command(TARGET SCEditor POST_BUILD
-            COMMAND "${MACDEPLOYQT_EXECUTABLE}" "${CMAKE_BINARY_DIR}/SCEditor.app" -always-overwrite
+            COMMAND "${MACDEPLOYQT_EXECUTABLE}" "${CMAKE_BINARY_DIR}/SCEditor.app" -always-overwrite -no-codesign
             COMMENT "Deploying Qt Frameworks and Bundles for Editor app (Apple Clang / macOS)..."
         )
         add_custom_command(TARGET SCEditor POST_BUILD

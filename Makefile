@@ -15,8 +15,8 @@ clean:
 
 clean-all:
 	@cmake -E remove_directory build
-	@cmake -E make_directory build
-	@cmake -S . -B build -A x64
+	@cmake -S . -B build
+	@cmake -E create_symlink build/compile_commands.json compile_commands.json 2>/dev/null || true
 
 distclean: clean-all
 

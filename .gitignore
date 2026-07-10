@@ -34,6 +34,8 @@ ui_*.h
 *.pro.user.*
 
 # IDE & Editor files
+compile_commands.json
+.cache/
 .vs/
 .vscode/
 *.sln
