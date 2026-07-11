@@ -45,6 +45,11 @@ void setDarkTitlebar(WId winId) {
 #endif
 }
 
+void elevateWindowAboveSystemBars(WId winId) {
+    // Windows: top-most tool windows sit above taskbar by default when styled correctly
+    Q_UNUSED(winId);
+}
+
 QStringList getAudioInputArgs(const QString& micDeviceName) {
     QStringList args;
     if (micDeviceName.isEmpty()) return args;
@@ -56,6 +61,12 @@ QStringList getAudioInputArgs(const QString& micDeviceName) {
     Q_UNUSED(micDeviceName);
 #endif
     return args;
+}
+
+bool checkAndRequestScreenCapturePermission(bool requestIfMissing, bool showPrompt) {
+    Q_UNUSED(requestIfMissing);
+    Q_UNUSED(showPrompt);
+    return true;
 }
 
 } // namespace Platform

@@ -229,6 +229,7 @@ private:
     void startVideoCountdown();
 
     QPixmap m_desktopSnapshot;
+    QImage m_desktopSnapshotImage;
     CaptureMode m_mode;
     bool m_isSelecting = false;
     bool m_selectionConfirmed = false;

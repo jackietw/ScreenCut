@@ -34,9 +34,24 @@ void excludeWindowFromCapture(WId winId);
 void setDarkTitlebar(WId winId);
 
 /**
+ * Elevate window level above macOS Dock and Menu bar (CGShieldingWindowLevel / level 1000)
+ * so that full-screen capture overlays can capture and receive mouse events over system bars.
+ */
+void elevateWindowAboveSystemBars(WId winId);
+
+/**
  * Build platform-specific audio input FFmpeg arguments for microphone capture.
  */
 QStringList getAudioInputArgs(const QString& micDeviceName);
+
+/**
+ * Check whether the application has permission to record/capture the screen across all open windows.
+ * - macOS (10.15+): Checks CGPreflightScreenCaptureAccess(). If false, returns only wallpaper when capturing.
+ *   If requestIfMissing is true, calls CGRequestScreenCaptureAccess().
+ *   If showPrompt is true, displays a clear GUI warning explaining why windows disappear and how to fix in System Settings.
+ * - Windows/Linux: Always returns true.
+ */
+bool checkAndRequestScreenCapturePermission(bool requestIfMissing = true, bool showPrompt = true);
 
 } // namespace Platform
 } // namespace ScreenCut

@@ -16,9 +16,15 @@
 
 namespace ScreenCut {
 
+#if defined(Q_OS_MACOS) || defined(Q_OS_MAC)
+PinWidget::PinWidget(const QPixmap& pixmap, QWidget* parent)
+    : QWidget(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint),
+      m_pixmap(pixmap) {
+#else
 PinWidget::PinWidget(const QPixmap& pixmap, QWidget* parent)
     : QWidget(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool),
       m_pixmap(pixmap) {
+#endif
     setAttribute(Qt::WA_DeleteOnClose, true);
     setCursor(Qt::SizeAllCursor);
     resize(m_pixmap.size());

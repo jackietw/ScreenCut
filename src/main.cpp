@@ -177,14 +177,7 @@ int main(int argc, char *argv[]) {
     // 5. Connect capture completion and edit requests to check Image tab toggles or launch editor
     auto launchEditorFunc = [](const QString& scutFilePath) {
         qDebug() << "Launching SCEditor for:" << scutFilePath;
-        QString editorPath = QDir(QCoreApplication::applicationDirPath()).filePath("SCEditor");
-#ifdef Q_OS_WIN
-        editorPath += ".exe";
-#endif
-        bool started = QProcess::startDetached(editorPath, { scutFilePath });
-        if (!started) {
-            started = QProcess::startDetached("SCEditor", { scutFilePath });
-        }
+        bool started = ScutProject::launchEditor({ scutFilePath });
         if (!started) {
             QMessageBox::critical(nullptr, "ScreenCut Error", "Failed to launch standalone SCEditor application!");
         }

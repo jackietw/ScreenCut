@@ -25,6 +25,10 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+if(APPLE)
+    set(CMAKE_BUILD_RPATH "@executable_path/../Frameworks")
+endif()
+
 # Add Qt search path automatically if not specified
 if(WIN32 AND NOT DEFINED CMAKE_PREFIX_PATH AND NOT DEFINED Qt6_DIR)
     list(APPEND CMAKE_PREFIX_PATH "C:/Qt/6.8.3/msvc2022_64" "C:/Qt/6.8.0/msvc2022_64")
@@ -199,31 +203,30 @@ elseif(APPLE)
     if(MACDEPLOYQT_EXECUTABLE)
         if(FFMPEG_EXECUTABLE)
             add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -DAPP_DIR="${CMAKE_BINARY_DIR}/ScreenCut.app" -DMACDEPLOYQT="${MACDEPLOYQT_EXECUTABLE}" -P "${CMAKE_SOURCE_DIR}/platform/macos/deploy_mac.cmake"
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FFMPEG_EXECUTABLE}" "${CMAKE_BINARY_DIR}/ScreenCut.app/Contents/MacOS/ffmpeg"
-                COMMENT "Bundling ffmpeg binary into ScreenCut.app/Contents/MacOS/..."
+                COMMAND codesign --force --deep --sign "-"
+                        --entitlements "${CMAKE_SOURCE_DIR}/platform/macos/ScreenCut.entitlements"
+                        "${CMAKE_BINARY_DIR}/ScreenCut.app"
+                COMMENT "Deploying Qt Frameworks, bundling ffmpeg, and code-signing ScreenCut.app..."
+            )
+        else()
+            add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -DAPP_DIR="${CMAKE_BINARY_DIR}/ScreenCut.app" -DMACDEPLOYQT="${MACDEPLOYQT_EXECUTABLE}" -P "${CMAKE_SOURCE_DIR}/platform/macos/deploy_mac.cmake"
+                COMMAND codesign --force --deep --sign "-"
+                        --entitlements "${CMAKE_SOURCE_DIR}/platform/macos/ScreenCut.entitlements"
+                        "${CMAKE_BINARY_DIR}/ScreenCut.app"
+                COMMENT "Deploying Qt Frameworks and code-signing ScreenCut.app..."
             )
         endif()
-        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-            COMMAND "${MACDEPLOYQT_EXECUTABLE}" "${CMAKE_BINARY_DIR}/ScreenCut.app" -always-overwrite -no-codesign
-            COMMENT "Deploying Qt Frameworks and Bundles for Capture app (Apple Clang / macOS)..."
-        )
-        # Code-sign with entitlements (required for screen recording permission on macOS 10.15+)
-        # Uses '-' (ad-hoc signing) for local dev; replace with Developer ID for distribution.
-        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-            COMMAND codesign --force --deep --sign "-"
-                    --entitlements "${CMAKE_SOURCE_DIR}/platform/macos/ScreenCut.entitlements"
-                    "${CMAKE_BINARY_DIR}/ScreenCut.app"
-            COMMENT "Code-signing ScreenCut.app with Screen Recording entitlements..."
-        )
         add_custom_command(TARGET SCEditor POST_BUILD
-            COMMAND "${MACDEPLOYQT_EXECUTABLE}" "${CMAKE_BINARY_DIR}/SCEditor.app" -always-overwrite -no-codesign
-            COMMENT "Deploying Qt Frameworks and Bundles for Editor app (Apple Clang / macOS)..."
-        )
-        add_custom_command(TARGET SCEditor POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -DAPP_DIR="${CMAKE_BINARY_DIR}/SCEditor.app" -DMACDEPLOYQT="${MACDEPLOYQT_EXECUTABLE}" -P "${CMAKE_SOURCE_DIR}/platform/macos/deploy_mac.cmake"
             COMMAND codesign --force --deep --sign "-"
                     "${CMAKE_BINARY_DIR}/SCEditor.app"
-            COMMENT "Code-signing SCEditor.app..."
+            COMMENT "Deploying Qt Frameworks and code-signing SCEditor.app..."
         )
+        # Prevent concurrent macdeployqt runs when building targets in parallel (e.g. make -j)
+        add_dependencies(SCEditor ${PROJECT_NAME})
     endif()
 endif()
 

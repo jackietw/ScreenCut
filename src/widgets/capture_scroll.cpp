@@ -29,11 +29,16 @@ ScrollBorderOverlay::ScrollBorderOverlay(const QRect& logicalRect, QWidget* pare
     , m_padding(2)
     , m_topPadding(25)
 {
+#if defined(Q_OS_MACOS) || defined(Q_OS_MAC)
+    setWindowFlags(Qt::WindowStaysOnTopHint | Qt::FramelessWindowHint | Qt::WindowTransparentForInput | Qt::NoDropShadowWindowHint);
+#else
     setWindowFlags(Qt::WindowStaysOnTopHint | Qt::FramelessWindowHint | Qt::WindowTransparentForInput | Qt::NoDropShadowWindowHint | Qt::Tool);
+#endif
     setAttribute(Qt::WA_TranslucentBackground);
     setAttribute(Qt::WA_ShowWithoutActivating);
 
     Platform::excludeWindowFromCapture(winId());
+    Platform::elevateWindowAboveSystemBars(winId());
 
     QScreen* screen = QGuiApplication::screenAt(logicalRect.center());
     if (!screen) screen = QGuiApplication::primaryScreen();
@@ -145,7 +150,11 @@ ScrollCaptureManager::ScrollCaptureManager(const QRect& logicalRect, QObject* pa
 {
     // Build the floating control UI as a standalone top-level QWidget
     m_controlWidget = new QWidget(nullptr);
+#if defined(Q_OS_MACOS) || defined(Q_OS_MAC)
+    m_controlWidget->setWindowFlags(Qt::WindowStaysOnTopHint | Qt::FramelessWindowHint | Qt::NoDropShadowWindowHint);
+#else
     m_controlWidget->setWindowFlags(Qt::WindowStaysOnTopHint | Qt::FramelessWindowHint | Qt::Tool | Qt::NoDropShadowWindowHint);
+#endif
     m_controlWidget->setAttribute(Qt::WA_TranslucentBackground);
     m_controlWidget->setAttribute(Qt::WA_ShowWithoutActivating);
 

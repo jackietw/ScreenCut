@@ -2,16 +2,20 @@
 .PHONY: all clean clean-all distclean rebuild capture editor
 
 all:
-	@cmake --build build --config Release
+	@test -f build/CMakeCache.txt || cmake -S . -B build
+	@MAKEFLAGS= cmake --build build --config Release --parallel
 
 capture:
-	@cmake --build build --config Release --target ScreenCut
+	@test -f build/CMakeCache.txt || cmake -S . -B build
+	@MAKEFLAGS= cmake --build build --config Release --target ScreenCut --parallel
 
 editor:
-	@cmake --build build --config Release --target SCEditor
+	@test -f build/CMakeCache.txt || cmake -S . -B build
+	@MAKEFLAGS= cmake --build build --config Release --target SCEditor --parallel
 
 clean:
-	@cmake --build build --config Release --target clean
+	@test -f build/CMakeCache.txt || cmake -S . -B build
+	@MAKEFLAGS= cmake --build build --config Release --target clean
 
 clean-all:
 	@cmake -E remove_directory build

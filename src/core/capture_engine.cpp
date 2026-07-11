@@ -286,6 +286,15 @@ void CaptureEngine::startCapture(CaptureMode mode) {
     qWarning() << "[CaptureEngine] Capture already pending, ignoring request.";
     return;
   }
+  if (!Platform::checkAndRequestScreenCapturePermission(true, true)) {
+    qWarning() << "[CaptureEngine] Screen capture permission not granted on macOS. Aborting capture start.";
+    if (CaptureMainWindow::instance() && !CaptureMainWindow::instance()->isVisible()) {
+      CaptureMainWindow::instance()->showNormal();
+      CaptureMainWindow::instance()->activateWindow();
+      CaptureMainWindow::instance()->raise();
+    }
+    return;
+  }
   m_currentMode = mode;
   m_isPendingCapture = true;
 
@@ -316,7 +325,7 @@ void CaptureEngine::startCapture(CaptureMode mode) {
     });
     countdown->startCountdown();
   } else if (wasVisible) {
-    QTimer::singleShot(200, this, [this, mode]() { doActualCapture(mode); });
+    QTimer::singleShot(250, this, [this, mode]() { doActualCapture(mode); });
   } else {
     doActualCapture(mode);
   }
@@ -508,6 +517,7 @@ void CaptureEngine::doActualCapture(CaptureMode mode) {
 #endif
   m_overlayWidget->activateWindow();
   m_overlayWidget->setFocus();
+  Platform::elevateWindowAboveSystemBars(m_overlayWidget->winId());
 }
 
 void CaptureEngine::startRegionCapture() { startCapture(CaptureMode::Region); }
@@ -707,21 +717,16 @@ WindowInfo CaptureEngine::findWindowAt(const QPoint &globalPos) {
 // enumerate visible windows and find the topmost window under globalPos.
 // -----------------------------------------------------------------------
 #if defined(Q_OS_MACOS) || defined(Q_OS_MAC)
-  // Convert Qt logical coords → CoreGraphics screen coords (CG origin =
-  // top-left of primary)
-  QScreen *primaryScreen = QGuiApplication::primaryScreen();
-  qreal dpr = primaryScreen ? primaryScreen->devicePixelRatio() : 1.0;
-
   // Build virtual geometry (may span multiple screens)
   QList<QScreen *> screens = QGuiApplication::screens();
   QRect virtualGeometry;
   for (QScreen *s : screens)
     virtualGeometry = virtualGeometry.united(s->geometry());
 
-  // CG coords: origin = top-left of primary screen, Y increases downward, in
-  // physical pixels
-  CGFloat cgX = globalPos.x() * dpr;
-  CGFloat cgY = globalPos.y() * dpr;
+  // CG coords: kCGWindowBounds is returned in screen coordinates (logical points),
+  // with origin (0,0) at the top-left of the primary display (matching Qt QPoint globalPos exactly).
+  CGFloat cgX = globalPos.x();
+  CGFloat cgY = globalPos.y();
 
   CFArrayRef windowList = CGWindowListCopyWindowInfo(
       kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements,
@@ -744,7 +749,19 @@ WindowInfo CaptureEngine::findWindowAt(const QPoint &globalPos) {
           continue;
       }
 
-      // Get window bounds in CG coords
+      // Target standard application windows (layer 0), floating tool panels (layer 3),
+      // macOS Dock (layer 20), and Top Menu Bar / Status Bar (layers 24-25).
+      // Skip negative layers (desktop wallpaper) and high shielding overlays (>25).
+      CFNumberRef layerRef = static_cast<CFNumberRef>(
+          CFDictionaryGetValue(dict, kCGWindowLayer));
+      if (layerRef) {
+        int layer = 0;
+        CFNumberGetValue(layerRef, kCFNumberIntType, &layer);
+        if (layer < 0 || layer > 25)
+          continue;
+      }
+
+      // Get window bounds in logical screen coordinates (points)
       CFDictionaryRef boundsDict = static_cast<CFDictionaryRef>(
           CFDictionaryGetValue(dict, kCGWindowBounds));
       if (!boundsDict)
@@ -755,13 +772,13 @@ WindowInfo CaptureEngine::findWindowAt(const QPoint &globalPos) {
       if (cgX >= bounds.origin.x && cgX < bounds.origin.x + bounds.size.width &&
           cgY >= bounds.origin.y &&
           cgY < bounds.origin.y + bounds.size.height &&
-          bounds.size.width > 10 && bounds.size.height > 10) {
+          bounds.size.width > 20 && bounds.size.height > 15) {
 
-        // Convert CG physical → Qt logical coords
-        int logLeft = qRound(bounds.origin.x / dpr) - virtualGeometry.left();
-        int logTop = qRound(bounds.origin.y / dpr) - virtualGeometry.top();
-        int logWidth = qRound(bounds.size.width / dpr);
-        int logHeight = qRound(bounds.size.height / dpr);
+        // Convert CG logical screen points → RegionSelectWidget overlay coordinates
+        int logLeft = qRound(bounds.origin.x) - virtualGeometry.left();
+        int logTop = qRound(bounds.origin.y) - virtualGeometry.top();
+        int logWidth = qRound(bounds.size.width);
+        int logHeight = qRound(bounds.size.height);
         info.rect = QRect(logLeft, logTop, logWidth, logHeight);
 
         // Window title
@@ -804,9 +821,14 @@ public:
   explicit VideoBorderOverlay(const QRect &logicalRect,
                               QWidget *parent = nullptr)
       : QWidget(parent), m_rect(logicalRect) {
+#if defined(Q_OS_MACOS) || defined(Q_OS_MAC)
+    setWindowFlags(Qt::WindowStaysOnTopHint | Qt::FramelessWindowHint |
+                   Qt::WindowTransparentForInput | Qt::NoDropShadowWindowHint);
+#else
     setWindowFlags(Qt::WindowStaysOnTopHint | Qt::FramelessWindowHint |
                    Qt::WindowTransparentForInput | Qt::NoDropShadowWindowHint |
                    Qt::Tool);
+#endif
     setAttribute(Qt::WA_TranslucentBackground);
     setAttribute(Qt::WA_ShowWithoutActivating);
 
@@ -851,6 +873,7 @@ RegionSelectWidget::RegionSelectWidget(const QPixmap &desktopSnapshot,
 
   if (!m_desktopSnapshot.isNull()) {
     setGeometry(m_desktopSnapshot.rect());
+    m_desktopSnapshotImage = m_desktopSnapshot.toImage();
   }
   updateHoveredWindow(mapFromGlobal(QCursor::pos()));
 }
@@ -880,15 +903,21 @@ void RegionSelectWidget::setVideoRecordingActive(bool active) {
     if (!m_borderOverlay) {
       m_borderOverlay = new VideoBorderOverlay(m_selectedRect);
       m_borderOverlay->show();
+      Platform::elevateWindowAboveSystemBars(m_borderOverlay->winId());
     }
     if (m_toolbar) {
       m_toolbar->setParent(nullptr);
+#if defined(Q_OS_MACOS) || defined(Q_OS_MAC)
+      m_toolbar->setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+#else
       m_toolbar->setWindowFlags(Qt::Tool | Qt::FramelessWindowHint |
                                 Qt::WindowStaysOnTopHint);
+#endif
       m_toolbar->setAttribute(Qt::WA_TranslucentBackground, true);
       updateToolbarPosition();
       m_toolbar->show();
       m_toolbar->raise();
+      Platform::elevateWindowAboveSystemBars(m_toolbar->winId());
     }
     if (m_statusCard) {
       m_statusCard->hide();
@@ -903,6 +932,7 @@ void RegionSelectWidget::setVideoRecordingActive(bool active) {
     }
     show();
     raise();
+    Platform::elevateWindowAboveSystemBars(winId());
   }
   update();
 }
@@ -989,7 +1019,6 @@ void RegionSelectWidget::paintEvent(QPaintEvent * /*event*/) {
     painter.drawRect(highlightRect);
 
     if (m_isCountingDown && highlightRect == m_selectedRect) {
-      // 紅框內變暗
       painter.fillRect(highlightRect, QColor(0, 0, 0, 150));
 
       // Draw countdown number 3 -> 2 -> 1
@@ -1020,8 +1049,8 @@ void RegionSelectWidget::paintEvent(QPaintEvent * /*event*/) {
                        handleSize);
     }
 
-    // 4. Draw dimensions tooltip
-    if (!(m_selectionConfirmed && m_mode == CaptureMode::VideoRegion)) {
+    // 4. Draw dimensions tooltip (Always show when not recording/countdown so upper dimensions update when dragging)
+    if (!m_isCountingDown && !m_isVideoRecordingActive) {
       drawDimensionsTooltip(painter, highlightRect);
     }
   } else {
@@ -1116,6 +1145,32 @@ void RegionSelectWidget::drawMagnifier(QPainter &painter, const QPoint &pos) {
   QRectF centerBox(loupePos.x() + (loupeSize - logicalPixelSize) / 2.0,
                    loupePos.y() + (loupeSize - logicalPixelSize) / 2.0,
                    logicalPixelSize, logicalPixelSize);
+
+  // Draw pixel grid lines inside loupe
+  if (logicalPixelSize >= 3.0) {
+    painter.save();
+    painter.setPen(QPen(QColor(160, 160, 160, 100), 1));
+    for (qreal x = centerBox.left(); x >= loupePos.x(); x -= logicalPixelSize) {
+      painter.drawLine(QPointF(x, loupePos.y()),
+                       QPointF(x, loupePos.y() + loupeSize));
+    }
+    for (qreal x = centerBox.right(); x <= loupePos.x() + loupeSize;
+         x += logicalPixelSize) {
+      painter.drawLine(QPointF(x, loupePos.y()),
+                       QPointF(x, loupePos.y() + loupeSize));
+    }
+    for (qreal y = centerBox.top(); y >= loupePos.y(); y -= logicalPixelSize) {
+      painter.drawLine(QPointF(loupePos.x(), y),
+                       QPointF(loupePos.x() + loupeSize, y));
+    }
+    for (qreal y = centerBox.bottom(); y <= loupePos.y() + loupeSize;
+         y += logicalPixelSize) {
+      painter.drawLine(QPointF(loupePos.x(), y),
+                       QPointF(loupePos.x() + loupeSize, y));
+    }
+    painter.restore();
+  }
+
   painter.setPen(QPen(themeColor, 1.5));
   painter.setBrush(Qt::NoBrush);
   painter.drawRect(centerBox);
@@ -1138,10 +1193,12 @@ void RegionSelectWidget::drawMagnifier(QPainter &painter, const QPoint &pos) {
                           loupeSize / 2.0, loupeSize / 2.0);
 
   // Draw RGB hex tooltip below loupe
-  QImage img = m_desktopSnapshot.toImage();
-  int physX = qBound(0, qRound(pos.x() * dpr), img.width() - 1);
-  int physY = qBound(0, qRound(pos.y() * dpr), img.height() - 1);
-  QRgb rgb = img.pixel(physX, physY);
+  if (m_desktopSnapshotImage.isNull() && !m_desktopSnapshot.isNull()) {
+    m_desktopSnapshotImage = m_desktopSnapshot.toImage();
+  }
+  int physX = qBound(0, qRound(pos.x() * dpr), m_desktopSnapshotImage.width() - 1);
+  int physY = qBound(0, qRound(pos.y() * dpr), m_desktopSnapshotImage.height() - 1);
+  QRgb rgb = m_desktopSnapshotImage.pixel(physX, physY);
   QString hexColor = QString("#%1%2%3")
                          .arg(qRed(rgb), 2, 16, QChar('0'))
                          .arg(qGreen(rgb), 2, 16, QChar('0'))
@@ -1415,44 +1472,44 @@ void RegionSelectWidget::updateToolbarPosition() {
   int tbWidth = m_toolbar->width();
   int tbHeight = m_toolbar->height();
 
+  // Find the safe available working area on this screen (excluding macOS Dock and top menu bar)
+  QScreen *screen = QGuiApplication::screenAt(mapToGlobal(m_selectedRect.center()));
+  if (!screen)
+    screen = QGuiApplication::primaryScreen();
+  QRect availRect = screen ? screen->availableGeometry() : rect();
+  // Map global availableRect to RegionSelectWidget local coordinates
+  QRect localAvail(mapFromGlobal(availRect.topLeft()), availRect.size());
+
   int x = m_selectedRect.right() - tbWidth + 1;
   int y = m_selectedRect.bottom() + 8;
 
-  // 1. If placing below m_selectedRect goes past screen bottom minus margin
-  // (e.g., touching taskbar/system bar), try placing above m_selectedRect.
-  if (y + tbHeight > height() - 8) {
-    if (m_selectedRect.top() - tbHeight - 8 >= 8) {
+  // 1. If placing below m_selectedRect goes past available screen bottom minus margin
+  // (e.g., touching Dock/taskbar/system bar), try placing above m_selectedRect.
+  if (y + tbHeight > qMin(localAvail.bottom() - 8, height() - 8)) {
+    if (m_selectedRect.top() - tbHeight - 8 >= qMax(localAvail.top() + 8, 8)) {
       y = m_selectedRect.top() - tbHeight - 8;
     } else {
       // 2. If neither above nor below fits outside m_selectedRect (e.g. full
-      // screen or window touching top & bottom), place inside the bottom-right
-      // of m_selectedRect.
-      y = m_selectedRect.bottom() - tbHeight - 8;
+      // screen or window touching top & bottom of available screen), place inside
+      // the bottom-right of m_selectedRect, above the Dock boundary.
+      y = qMin(m_selectedRect.bottom() - tbHeight - 12, localAvail.bottom() - tbHeight - 8);
+      x = qMin(m_selectedRect.right() - tbWidth - 12, localAvail.right() - tbWidth - 8);
     }
   }
 
-  // 3. Absolute clamp against screen bounds so toolbar never disappears off
-  // screen.
-  if (y + tbHeight > height() - 8) {
-    y = height() - tbHeight - 8;
+  // 3. Absolute clamp against available screen bounds so toolbar never disappears under Dock or Menu bar.
+  if (y + tbHeight > localAvail.bottom() - 8) {
+    y = localAvail.bottom() - tbHeight - 8;
   }
-  if (y < 8) {
-    y = 8;
+  if (y < localAvail.top() + 8) {
+    y = localAvail.top() + 8;
   }
-
-  if (x + tbWidth > width() - 8) {
-    x = width() - tbWidth - 8;
+  if (x + tbWidth > localAvail.right() - 8) {
+    x = localAvail.right() - tbWidth - 8;
   }
-  if (x < 8) {
-    x = 8;
+  if (x < localAvail.left() + 8) {
+    x = localAvail.left() + 8;
   }
-
-  if (m_toolbar->parentWidget() == nullptr) {
-    m_toolbar->move(mapToGlobal(QPoint(x, y)));
-  } else {
-    m_toolbar->move(x, y);
-  }
-  m_toolbar->raise();
 
   if (m_statusCard && m_mode == CaptureMode::VideoRegion) {
     m_statusCard->adjustSize();
@@ -1469,6 +1526,17 @@ void RegionSelectWidget::updateToolbarPosition() {
     if (scX < m_selectedRect.left() + 5)
       scX = m_selectedRect.left() + 5;
 
+    // If status card overlaps or covers the toolbar position, shift status card up away from toolbar
+    QRect tbRect(x, y, tbWidth, tbHeight);
+    QRect scRect(scX, scY, scW, scH);
+    if (scRect.intersects(tbRect)) {
+      if (y - scH - 15 >= localAvail.top() + 15 && y - scH - 15 >= m_selectedRect.top() + 5) {
+        scY = y - scH - 15;
+      } else {
+        scY = localAvail.top() + 15;
+      }
+    }
+
     if (m_statusCard->parentWidget() == nullptr) {
       m_statusCard->move(mapToGlobal(QPoint(scX, scY)));
     } else {
@@ -1477,6 +1545,14 @@ void RegionSelectWidget::updateToolbarPosition() {
     m_statusCard->show();
     m_statusCard->raise();
   }
+
+  if (m_toolbar->parentWidget() == nullptr) {
+    m_toolbar->move(mapToGlobal(QPoint(x, y)));
+  } else {
+    m_toolbar->move(x, y);
+  }
+  m_toolbar->show();
+  m_toolbar->raise();
 }
 
 void RegionSelectWidget::executeEdit() {
@@ -1547,18 +1623,15 @@ void RegionSelectWidget::ensureToolbarAndShow() {
   if (m_mode == CaptureMode::VideoRegion && !m_statusCard) {
     m_statusCard = new CaptureStatusWidget(this, false);
   }
+  if (m_statusCard && m_mode == CaptureMode::VideoRegion) {
+    m_statusCard->refreshStatus();
+  }
 
   m_toolbar->updateTargetDimensions(m_selectedRect.width(),
                                     m_selectedRect.height());
   updateToolbarPosition();
   m_toolbar->show();
   m_toolbar->raise();
-
-  if (m_statusCard && m_mode == CaptureMode::VideoRegion) {
-    m_statusCard->refreshStatus();
-    m_statusCard->show();
-    m_statusCard->raise();
-  }
   update();
 }
 

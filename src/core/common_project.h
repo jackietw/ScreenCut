@@ -20,6 +20,8 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QDebug>
+#include <QProcess>
+#include <QCoreApplication>
 #include "../version.h"
 
 namespace ScreenCut {
@@ -121,6 +123,58 @@ public:
         outAnnotations = root["annotations"].toArray();
         qDebug() << "[ScutProject] Successfully loaded .scut project from:" << filePath << "| Size:" << outPixmap.size() << "| Annotations:" << outAnnotations.size();
         return true;
+    }
+
+    static QString findEditorBinaryPath() {
+        QString appDir = QCoreApplication::applicationDirPath();
+        QStringList candidates;
+#if defined(Q_OS_WIN)
+        candidates << QDir(appDir).filePath("SCEditor.exe");
+        candidates << QDir(appDir).filePath("../SCEditor.exe");
+        candidates << QDir(appDir).filePath("../../SCEditor.exe");
+#elif defined(Q_OS_MACOS) || defined(Q_OS_MAC)
+        // 1. Same MacOS folder inside app bundle
+        candidates << QDir(appDir).filePath("SCEditor");
+        // 2. Sibling bundle in the same folder (e.g. build/SCEditor.app or /Applications/SCEditor.app)
+        candidates << QDir(appDir).filePath("../../../SCEditor.app/Contents/MacOS/SCEditor");
+        // 3. Bundled inside Resources
+        candidates << QDir(appDir).filePath("../Resources/SCEditor.app/Contents/MacOS/SCEditor");
+        // 4. One level up outside bundle
+        candidates << QDir(appDir).filePath("../../../../SCEditor.app/Contents/MacOS/SCEditor");
+#else
+        candidates << QDir(appDir).filePath("SCEditor");
+        candidates << QDir(appDir).filePath("../SCEditor");
+#endif
+        for (const QString &path : candidates) {
+            if (QFileInfo::exists(path)) {
+                qDebug() << "[ScutProject] Found SCEditor binary at:" << path;
+                return QDir::cleanPath(path);
+            }
+        }
+        return "SCEditor";
+    }
+
+    static bool launchEditor(const QStringList &args = QStringList()) {
+        QString editorPath = findEditorBinaryPath();
+        qDebug() << "[ScutProject] Launching SCEditor using path:" << editorPath << "with args:" << args;
+        bool started = QProcess::startDetached(editorPath, args);
+#if defined(Q_OS_MACOS) || defined(Q_OS_MAC)
+        if (!started && editorPath != "SCEditor") {
+            if (editorPath.contains("SCEditor.app")) {
+                QString appBundle = editorPath.left(editorPath.indexOf("SCEditor.app") + 12);
+                QStringList openArgs;
+                openArgs << "-a" << appBundle;
+                if (!args.isEmpty()) {
+                    openArgs << "--args" << args;
+                }
+                started = QProcess::startDetached("open", openArgs);
+            }
+        }
+#endif
+        if (!started) {
+            started = QProcess::startDetached("SCEditor", args);
+        }
+        return started;
     }
 };
 

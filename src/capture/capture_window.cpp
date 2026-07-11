@@ -5,6 +5,7 @@
 
 #include "capture_window.h"
 #include "../core/capture_engine.h"
+#include "../core/common_project.h"
 #include "../config.h"
 #include "../version.h"
 #include <QApplication>
@@ -388,11 +389,16 @@ QWidget* CaptureMainWindow::createVideoTab() {
 }
 
 void CaptureMainWindow::onCaptureClicked() {
-    qDebug() << "[CaptureMainWindow] Capture button clicked. Hiding window...";
+    qDebug() << "[CaptureMainWindow] Capture button clicked.";
+    if (!Platform::checkAndRequestScreenCapturePermission(true, true)) {
+        qWarning() << "[CaptureMainWindow] Screen capture permission not granted on macOS. Aborting capture start.";
+        return;
+    }
+    qDebug() << "[CaptureMainWindow] Hiding window before capture...";
     hide();
     bool scrollCapture = isSettingEnabled("Scroll Capture");
     bool delay5s = isSettingEnabled("5 Second Delay");
-    int hideDelay = delay5s ? 0 : 200;
+    int hideDelay = delay5s ? 0 : 250;
     
     QTimer::singleShot(hideDelay, [scrollCapture]() {
         if (scrollCapture) {
@@ -406,25 +412,25 @@ void CaptureMainWindow::onCaptureClicked() {
 }
 
 void CaptureMainWindow::onRecordClicked() {
-    qDebug() << "[CaptureMainWindow] Record button clicked. Starting Video Region capture...";
+    qDebug() << "[CaptureMainWindow] Record button clicked.";
+    if (!Platform::checkAndRequestScreenCapturePermission(true, true)) {
+        qWarning() << "[CaptureMainWindow] Screen capture permission not granted on macOS. Aborting video record start.";
+        return;
+    }
+    qDebug() << "[CaptureMainWindow] Hiding window before video capture...";
     hide();
-    CaptureEngine::instance()->startVideoRegionCapture();
+    int hideDelay = 250;
+    QTimer::singleShot(hideDelay, []() {
+        CaptureEngine::instance()->startVideoRegionCapture();
+    });
 }
 
 void CaptureMainWindow::onOpenEditorClicked() {
     qDebug() << "[CaptureMainWindow] Open Editor clicked. Launching standalone studio...";
     hide();
-    // Launch standalone SCEditor app without arguments
-    QString editorPath = QDir(QCoreApplication::applicationDirPath()).filePath("SCEditor");
-#ifdef Q_OS_WIN
-    editorPath += ".exe";
-#endif
-    bool started = QProcess::startDetached(editorPath, QStringList());
+    bool started = ScreenCut::ScutProject::launchEditor();
     if (!started) {
-        started = QProcess::startDetached("SCEditor", QStringList());
-    }
-    if (!started) {
-        qCritical() << "[CaptureMainWindow] Failed to launch standalone SCEditor at path:" << editorPath;
+        qCritical() << "[CaptureMainWindow] Failed to launch standalone SCEditor.";
         QMessageBox::critical(this, "ScreenCut Error", "Failed to launch standalone SCEditor application!");
     } else {
         qDebug() << "[CaptureMainWindow] Successfully launched SCEditor.";
