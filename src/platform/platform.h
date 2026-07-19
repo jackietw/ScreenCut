@@ -37,7 +37,13 @@ void setDarkTitlebar(WId winId);
  * Elevate window level above macOS Dock and Menu bar (CGShieldingWindowLevel / level 1000)
  * so that full-screen capture overlays can capture and receive mouse events over system bars.
  */
-void elevateWindowAboveSystemBars(WId winId);
+void elevateWindowAboveSystemBars(WId winId, bool joinAllSpaces = true);
+
+/**
+ * Configure macOS window collection behavior to participate in Mission Control (Managed)
+ * while also joining and following across all virtual desktop spaces (CanJoinAllSpaces).
+ */
+void enableWindowAllSpacesAndMissionControl(WId winId);
 
 /**
  * Build platform-specific audio input FFmpeg arguments for microphone capture.

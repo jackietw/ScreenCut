@@ -77,6 +77,8 @@ set(CAPTURE_SOURCES
     src/widgets/capture_status.cpp
     src/capture/capture_window.h
     src/capture/capture_window.cpp
+    src/capture/capture_preferences.h
+    src/capture/capture_preferences.cpp
     ${SHARED_SOURCES}
 )
 

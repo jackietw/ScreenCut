@@ -13,6 +13,7 @@
 #include <QDateTime>
 #include <QAction>
 #include "../core/common_project.h"
+#include "../platform/platform.h"
 
 namespace ScreenCut {
 
@@ -59,6 +60,11 @@ void PinWidget::mouseDoubleClickEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
         close();
     }
+}
+
+void PinWidget::showEvent(QShowEvent* event) {
+    QWidget::showEvent(event);
+    Platform::elevateWindowAboveSystemBars(winId());
 }
 
 void PinWidget::contextMenuEvent(QContextMenuEvent* event) {

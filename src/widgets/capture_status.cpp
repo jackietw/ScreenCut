@@ -272,10 +272,12 @@ QHBoxLayout* CaptureStatusWidget::createStatusRow(const QString& svgIcon, const 
 
 void CaptureStatusWidget::refreshStatus() {
     bool cursorOn = CaptureEngine::instance()->isSessionCursorEnabled();
+    bool hlOn = CaptureEngine::instance()->isSessionHighlightEnabled();
+    bool animOn = CaptureEngine::instance()->isSessionAnimationEnabled();
     bool micOn = CaptureEngine::instance()->isSessionMicEnabled();
     bool sysAudioOn = CaptureEngine::instance()->isSessionSysAudioEnabled();
 
-    updateCursorState(cursorOn, cursorOn, cursorOn);
+    updateCursorState(cursorOn, hlOn, animOn);
     updateMicState(micOn);
     updateSysAudioState(sysAudioOn);
 
@@ -308,9 +310,9 @@ void CaptureStatusWidget::updateCursorState(bool on, bool hlOn, bool animOn) {
     }
     if (m_lblCursorHl && m_lblCursorAnim) {
         m_lblCursorHl->setText(hlOn ? "ON" : "OFF");
-        m_lblCursorHl->setStyleSheet(hlOn ? "color: #cccccc; font-size: 11px;" : "color: #777777; font-size: 11px;");
+        m_lblCursorHl->setStyleSheet((on && hlOn) ? "color: #cccccc; font-size: 11px;" : "color: #777777; font-size: 11px;");
         m_lblCursorAnim->setText(animOn ? "ON" : "OFF");
-        m_lblCursorAnim->setStyleSheet(animOn ? "color: #cccccc; font-size: 11px;" : "color: #777777; font-size: 11px;");
+        m_lblCursorAnim->setStyleSheet((on && animOn) ? "color: #cccccc; font-size: 11px;" : "color: #777777; font-size: 11px;");
     }
 }
 

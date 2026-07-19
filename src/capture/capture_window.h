@@ -45,13 +45,14 @@ private slots:
     void onOpenEditorClicked();
     void onPreferencesClicked();
     void onAboutClicked();
+    void onCursorMoreClicked(QWidget* anchor);
 
 private:
     void setupUi();
     void setupStyleSheet();
     QWidget* createImageTab();
     QWidget* createVideoTab();
-    void addSettingRow(QVBoxLayout* layout, const QString& labelText, bool isChecked, const QString& configKey = QString());
+    void addSettingRow(QVBoxLayout* layout, const QString& labelText, bool isChecked, const QString& configKey = QString(), bool hasMoreButton = false);
 
     static CaptureMainWindow* s_instance;
 
@@ -67,7 +68,6 @@ private:
     QPoint m_dragPos;
     bool m_isDragging = false;
     QWidget* m_aboutOverlay = nullptr;
-    QWidget* m_prefOverlay = nullptr;
 };
 
 } // namespace ScreenCut

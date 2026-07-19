@@ -22,9 +22,19 @@ namespace Platform {
 #if !defined(Q_OS_WIN)
 
 void excludeWindowFromCapture(WId winId) {
-  // macOS / Linux: window exclusion handled via native window levels or
-  // ScreenCaptureKit when applicable
+#if defined(Q_OS_MACOS) || defined(Q_OS_MAC)
+  if (!winId) return;
+  id nsView = reinterpret_cast<id>(winId);
+  if (!nsView) return;
+  id nsWindow = ((id (*)(id, SEL))objc_msgSend)(nsView, sel_registerName("window"));
+  if (nsWindow) {
+    // NSWindowSharingNone = 0 (excludes window from screen captures & recordings)
+    ((void (*)(id, SEL, unsigned long))objc_msgSend)(nsWindow, sel_registerName("setSharingType:"), 0);
+    qDebug() << "[Platform::excludeWindowFromCapture] Set NSWindow sharingType to NSWindowSharingNone (0) for winId:" << winId;
+  }
+#else
   Q_UNUSED(winId);
+#endif
 }
 
 void setDarkTitlebar(WId winId) {
@@ -32,7 +42,7 @@ void setDarkTitlebar(WId winId) {
   Q_UNUSED(winId);
 }
 
-void elevateWindowAboveSystemBars(WId winId) {
+void elevateWindowAboveSystemBars(WId winId, bool joinAllSpaces) {
 #if defined(Q_OS_MACOS) || defined(Q_OS_MAC)
   if (!winId) return;
   id nsView = reinterpret_cast<id>(winId);
@@ -43,7 +53,33 @@ void elevateWindowAboveSystemBars(WId winId) {
     // placing our capture overlay cleanly above Apple's Top Menu Bar (level 24) and Dock (level 20).
     int level = CGShieldingWindowLevel();
     ((void (*)(id, SEL, long))objc_msgSend)(nsWindow, sel_registerName("setLevel:"), (long)level);
-    qDebug() << "[Platform::elevateWindowAboveSystemBars] Elevated window level to CGShieldingWindowLevel:" << level;
+    if (joinAllSpaces) {
+      unsigned long currentBehavior = ((unsigned long (*)(id, SEL))objc_msgSend)(nsWindow, sel_registerName("collectionBehavior"));
+      unsigned long newBehavior = currentBehavior | (1 << 0); // NSWindowCollectionBehaviorCanJoinAllSpaces (1)
+      ((void (*)(id, SEL, unsigned long))objc_msgSend)(nsWindow, sel_registerName("setCollectionBehavior:"), newBehavior);
+    }
+    qDebug() << "[Platform::elevateWindowAboveSystemBars] Elevated window level on winId:" << winId << "joinAllSpaces:" << joinAllSpaces;
+  }
+#else
+  Q_UNUSED(winId);
+  Q_UNUSED(joinAllSpaces);
+#endif
+}
+
+void enableWindowAllSpacesAndMissionControl(WId winId) {
+#if defined(Q_OS_MACOS) || defined(Q_OS_MAC)
+  if (!winId) return;
+  id nsView = reinterpret_cast<id>(winId);
+  if (!nsView) return;
+  id nsWindow = ((id (*)(id, SEL))objc_msgSend)(nsView, sel_registerName("window"));
+  if (nsWindow) {
+    // NSWindowCollectionBehaviorMoveToActiveSpace = 1 << 1 (2) -> Window exists on ONLY ONE space at a time (not on every space!), but when activated/clicked from Dock on another space, macOS moves the window onto the current space instead of switching spaces back!
+    // NSWindowCollectionBehaviorManaged = 1 << 2 (4) -> Participates cleanly in Mission Control grid
+    // NSWindowCollectionBehaviorParticipatesInCycle = 1 << 5 (32) -> Participates in Cmd+Tab / Exposé
+    unsigned long currentBehavior = ((unsigned long (*)(id, SEL))objc_msgSend)(nsWindow, sel_registerName("collectionBehavior"));
+    unsigned long newBehavior = (currentBehavior & ~(unsigned long)(1 << 0)) | (1 << 1) | (1 << 2) | (1 << 5);
+    ((void (*)(id, SEL, unsigned long))objc_msgSend)(nsWindow, sel_registerName("setCollectionBehavior:"), newBehavior);
+    qDebug() << "[Platform::enableWindowAllSpacesAndMissionControl] Enabled MoveToActiveSpace (2) + Managed (4) + Cycle (32), cleared CanJoinAllSpaces (1) on winId:" << winId;
   }
 #else
   Q_UNUSED(winId);

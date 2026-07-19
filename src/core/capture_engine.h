@@ -28,6 +28,11 @@
 
 namespace ScreenCut {
 
+class CaptureToolBarWidget;
+class CaptureStatusWidget;
+class PinWidget;
+class RegionSelectWidget;
+
 enum class CaptureMode {
     Region,
     Window,
@@ -147,8 +152,10 @@ public:
     void initSessionStateFromConfig();
     bool isSessionCursorEnabled() const { return m_sessionCursorEnabled; }
     void setSessionCursorEnabled(bool enabled);
-    bool isSessionHighlightEnabled() const { return m_sessionCursorEnabled; }
-    bool isSessionAnimationEnabled() const { return m_sessionCursorEnabled; }
+    bool isSessionHighlightEnabled() const { return m_sessionHighlightEnabled; }
+    void setSessionHighlightEnabled(bool enabled);
+    bool isSessionAnimationEnabled() const { return m_sessionAnimationEnabled; }
+    void setSessionAnimationEnabled(bool enabled);
     bool isSessionMicEnabled() const { return m_sessionMicEnabled; }
     void setSessionMicEnabled(bool enabled);
     bool isSessionSysAudioEnabled() const { return m_sessionSysAudioEnabled; }
@@ -160,6 +167,10 @@ public:
     void setSessionClipboardEnabled(bool enabled) { m_sessionClipboardEnabled = enabled; }
     bool isSessionImgCursorEnabled() const { return m_sessionImgCursorEnabled; }
     void setSessionImgCursorEnabled(bool enabled) { m_sessionImgCursorEnabled = enabled; }
+
+    CaptureStatusWidget* statusCard() const;
+    CaptureToolBarWidget* toolbar() const;
+    RegionSelectWidget* overlayWidget() const { return m_overlayWidget; }
 
 private:
     explicit CaptureEngine(QObject* parent = nullptr);
@@ -174,16 +185,14 @@ private:
     CaptureMode m_currentMode = CaptureMode::Region;
     bool m_isPendingCapture = false;
     bool m_sessionCursorEnabled = true;
+    bool m_sessionHighlightEnabled = true;
+    bool m_sessionAnimationEnabled = true;
     bool m_sessionMicEnabled = true;
     bool m_sessionSysAudioEnabled = true;
     bool m_sessionEditorEnabled = true;
     bool m_sessionClipboardEnabled = true;
     bool m_sessionImgCursorEnabled = false;
 };
-
-class CaptureToolBarWidget;
-class CaptureStatusWidget;
-class PinWidget;
 
 // Overlay widget for selecting capture regions and windows
 class RegionSelectWidget : public QWidget {
@@ -193,6 +202,8 @@ public:
     ~RegionSelectWidget() override;
 
     QPoint lastSelectionMousePos() const { return m_lastSelectionMousePos; }
+    CaptureStatusWidget* statusCard() const { return m_statusCard; }
+    CaptureToolBarWidget* toolbar() const { return m_toolbar; }
 
 signals:
     void regionSelected(const QRect& rect);
@@ -212,7 +223,7 @@ protected:
 
 private:
     void updateHoveredWindow(const QPoint& pos);
-    void drawMagnifier(QPainter& painter, const QPoint& pos);
+    void drawMagnifier(QPainter& painter, const QPoint& pos, const QRect& highlightRect);
     void drawDimensionsTooltip(QPainter& painter, const QRect& rect);
     void updateToolbarPosition();
     void updateCursorForHandle(int handle);

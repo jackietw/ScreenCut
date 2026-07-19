@@ -45,9 +45,10 @@ void setDarkTitlebar(WId winId) {
 #endif
 }
 
-void elevateWindowAboveSystemBars(WId winId) {
+void elevateWindowAboveSystemBars(WId winId, bool joinAllSpaces) {
     // Windows: top-most tool windows sit above taskbar by default when styled correctly
     Q_UNUSED(winId);
+    Q_UNUSED(joinAllSpaces);
 }
 
 QStringList getAudioInputArgs(const QString& micDeviceName) {

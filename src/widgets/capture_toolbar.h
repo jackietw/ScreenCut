@@ -13,6 +13,8 @@
 #include <QLabel>
 #include <QTimer>
 
+class QMenu;
+
 namespace ScreenCut {
 
 enum class CaptureMode;
@@ -25,6 +27,7 @@ public:
 
     void setCaptureMode(CaptureMode mode);
     void updateTargetDimensions(int width, int height);
+    void refreshMenuStates();
     bool isVideoRecording() const { return m_isRecording; }
 
 signals:
@@ -39,7 +42,10 @@ signals:
     void actionVideoRecordStateChanged(bool isRecording);
     void actionVideoStop();
     void cursorToggled(bool checked);
+    void highlightToggled(bool checked);
+    void animationToggled(bool checked);
     void micToggled(bool checked);
+    void micDeviceChanged(const QString& devId);
     void sysAudioToggled(bool checked);
 
 protected:
@@ -55,6 +61,7 @@ private slots:
     void onImgEditorClicked();
     void onImgClipboardClicked();
     void onImgCursorClicked();
+    void onMicMenuAboutToShow();
 
 private:
     void setupUi();
@@ -79,6 +86,8 @@ private:
     QToolButton* m_btnCursor = nullptr;
     QToolButton* m_btnMic = nullptr;
     QToolButton* m_btnSysAudio = nullptr;
+    QMenu* m_cursorMenu = nullptr;
+    QMenu* m_micMenu = nullptr;
     QLabel* m_lblVideoStatus = nullptr;
     QToolButton* m_btnVideoStop = nullptr;
     QFrame* m_videoSeparator = nullptr;

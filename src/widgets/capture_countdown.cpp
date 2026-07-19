@@ -4,6 +4,7 @@
 */
 
 #include "capture_countdown.h"
+#include "../platform/platform.h"
 #include <QVBoxLayout>
 #include <QGuiApplication>
 #include <QScreen>
@@ -18,27 +19,15 @@ CountdownWidget::CountdownWidget(int seconds, QWidget* parent)
 {
     setWindowFlags(Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
     setAttribute(Qt::WA_TranslucentBackground);
-    setAttribute(Qt::WA_DeleteOnClose);
-    setCursor(Qt::PointingHandCursor);
-    setToolTip("Click to cancel");
+    setAttribute(Qt::WA_ShowWithoutActivating);
 
     QVBoxLayout* layout = new QVBoxLayout(this);
-    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setContentsMargins(15, 15, 15, 15);
 
-    QWidget* bg = new QWidget(this);
-    bg->setObjectName("CountdownBg");
-    // Black background with alpha=40% (0.4 * 255 = 102) and white text
-    bg->setStyleSheet("#CountdownBg { background-color: rgba(0, 0, 0, 102); border-radius: 12px; }");
-    bg->setFixedSize(120, 120);
-
-    QVBoxLayout* bgLayout = new QVBoxLayout(bg);
-    m_lblNumber = new QLabel(QString::number(m_remainingSeconds), bg);
-    m_lblNumber->setStyleSheet("color: white; font-size: 64px; font-weight: bold; background: transparent;");
+    m_lblNumber = new QLabel(QString::number(m_remainingSeconds), this);
     m_lblNumber->setAlignment(Qt::AlignCenter);
-    bgLayout->addWidget(m_lblNumber);
-
-    layout->addWidget(bg);
-    adjustSize();
+    m_lblNumber->setStyleSheet("color: white; font-size: 48px; font-weight: bold; background-color: rgba(20, 22, 28, 220); border: 2px solid #00a8ff; border-radius: 12px; padding: 10px; min-width: 60px; min-height: 60px;");
+    layout->addWidget(m_lblNumber);
 
     m_timer = new QTimer(this);
     m_timer->setInterval(1000);
@@ -58,6 +47,8 @@ void CountdownWidget::startCountdown() {
     }
     show();
     raise();
+    Platform::excludeWindowFromCapture(winId());
+    Platform::elevateWindowAboveSystemBars(winId());
     m_timer->start();
 }
 
@@ -65,8 +56,11 @@ void CountdownWidget::onTick() {
     m_remainingSeconds--;
     if (m_remainingSeconds <= 0) {
         m_timer->stop();
-        emit completed();
+        hide();
         close();
+        QTimer::singleShot(250, this, [this]() {
+            emit completed();
+        });
     } else {
         m_lblNumber->setText(QString::number(m_remainingSeconds));
     }

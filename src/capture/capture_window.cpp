@@ -24,32 +24,14 @@
 #include <QScrollArea>
 #include <QMediaDevices>
 #include <QAudioDevice>
+#include <QMenu>
+#include <QAction>
+#include <QToolButton>
 
 #include "../platform/platform.h"
+#include "capture_preferences.h"
 
 namespace ScreenCut {
-
-class PreferencesOverlayWidget : public QWidget {
-public:
-    QWidget* dialogBox = nullptr;
-    explicit PreferencesOverlayWidget(QWidget* parent = nullptr) : QWidget(parent) {}
-protected:
-    void resizeEvent(QResizeEvent* event) override {
-        QWidget::resizeEvent(event);
-        if (dialogBox) {
-            dialogBox->setFixedSize(size());
-        }
-    }
-    void mousePressEvent(QMouseEvent* event) override {
-        if (dialogBox && !dialogBox->geometry().contains(event->pos())) {
-            hide();
-            deleteLater();
-            event->accept();
-        } else {
-            QWidget::mousePressEvent(event);
-        }
-    }
-};
 
 class AboutOverlayWidget : public QWidget {
 public:
@@ -77,14 +59,14 @@ CaptureMainWindow::CaptureMainWindow(QWidget* parent)
     s_instance = this;
     setWindowTitle(QString("ScreenCut Capture v%1").arg(SCREENCUT_VERSION_STR));
     setWindowIcon(createSvgIcon(SVG_APP_ICON, 64, 64));
-    resize(480, 300);
-    setMinimumSize(480, 300);
+    setFixedSize(480, 300);
 
-    // Make window frameless & stay on top
-    setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+    // Make window frameless (normal window level so it appears in Mission Control / Spaces)
+    setWindowFlags(Qt::FramelessWindowHint);
     setAttribute(Qt::WA_TranslucentBackground);
 
     Platform::setDarkTitlebar(winId());
+    Platform::enableWindowAllSpacesAndMissionControl(winId());
 
     setupStyleSheet();
     setupUi();
@@ -262,7 +244,7 @@ void CaptureMainWindow::setupUi() {
     });
 }
 
-void CaptureMainWindow::addSettingRow(QVBoxLayout* layout, const QString& labelText, bool isChecked, const QString& configKey) {
+void CaptureMainWindow::addSettingRow(QVBoxLayout* layout, const QString& labelText, bool isChecked, const QString& configKey, bool hasMoreButton) {
     QString key = configKey.isEmpty() ? labelText : configKey;
     QHBoxLayout* row = new QHBoxLayout();
     QLabel* lbl = new QLabel(labelText);
@@ -287,12 +269,63 @@ void CaptureMainWindow::addSettingRow(QVBoxLayout* layout, const QString& labelT
     rcLayout->setSpacing(5);
     rcLayout->addWidget(toggle);
 
-    QWidget* spacer = new QWidget();
-    spacer->setFixedSize(20, 20);
-    rcLayout->addWidget(spacer);
+    if (hasMoreButton) {
+        QToolButton* btnMore = new QToolButton(rightContainer);
+        btnMore->setIcon(createSvgIcon(SVG_MORE, 18, 18));
+        btnMore->setIconSize(QSize(18, 18));
+        btnMore->setFixedSize(20, 20);
+        btnMore->setCursor(Qt::PointingHandCursor);
+        btnMore->setToolTip("Advanced Cursor Settings (進階游標設定)");
+        btnMore->setStyleSheet("QToolButton { border: none; background: transparent; border-radius: 4px; }"
+                               "QToolButton:hover { background: rgba(255, 255, 255, 0.15); }"
+                               "QToolButton:pressed { background: rgba(255, 255, 255, 0.25); }");
+        connect(btnMore, &QToolButton::clicked, this, [this, btnMore]() {
+            onCursorMoreClicked(btnMore);
+        });
+        rcLayout->addWidget(btnMore);
+    } else {
+        QWidget* spacer = new QWidget(rightContainer);
+        spacer->setFixedSize(20, 20);
+        rcLayout->addWidget(spacer);
+    }
 
     row->addWidget(rightContainer);
     layout->addLayout(row);
+}
+
+void CaptureMainWindow::onCursorMoreClicked(QWidget* anchor) {
+    QMenu menu(this);
+    menu.setStyleSheet("QMenu { background-color: #282e38; color: #f0f0f0; border: 1px solid #384252; border-radius: 6px; padding: 4px 0px; font-size: 13px; }"
+                       "QMenu::item { padding: 6px 28px 6px 28px; }"
+                       "QMenu::item:selected { background-color: #00a8ff; color: #ffffff; }"
+                       "QMenu::indicator { width: 14px; height: 14px; left: 8px; }");
+
+    QAction* actHighlight = menu.addAction("Highlight");
+    actHighlight->setCheckable(true);
+    actHighlight->setChecked(Config::getValue("Video_Capture Cursor Highlight", true).toBool());
+
+    QAction* actAnim = menu.addAction("Animation");
+    actAnim->setCheckable(true);
+    actAnim->setChecked(Config::getValue("Video_Capture Cursor Animation", true).toBool());
+
+    connect(actHighlight, &QAction::toggled, this, [](bool checked) {
+        Config::setValue("Video_Capture Cursor Highlight", checked);
+        if (CaptureEngine::instance()) {
+            CaptureEngine::instance()->setSessionHighlightEnabled(checked);
+        }
+    });
+    connect(actAnim, &QAction::toggled, this, [](bool checked) {
+        Config::setValue("Video_Capture Cursor Animation", checked);
+        if (CaptureEngine::instance()) {
+            CaptureEngine::instance()->setSessionAnimationEnabled(checked);
+        }
+    });
+
+    if (anchor) {
+        menu.exec(anchor->mapToGlobal(QPoint(0, anchor->height())));
+    } else {
+        menu.exec(QCursor::pos());
+    }
 }
 
 bool CaptureMainWindow::isSettingEnabled(const QString& key) const {
@@ -359,7 +392,7 @@ QWidget* CaptureMainWindow::createVideoTab() {
     QVBoxLayout* settingsLayout = new QVBoxLayout();
     settingsLayout->setSpacing(15);
 
-    addSettingRow(settingsLayout, "Capture Cursor", true, "Video_Capture Cursor");
+    addSettingRow(settingsLayout, "Capture Cursor", true, "Video_Capture Cursor", true);
     addSettingRow(settingsLayout, "Record Microphone", true, "Record Microphone");
     addSettingRow(settingsLayout, "Record System Audio", true, "Record System Audio");
 
@@ -446,385 +479,12 @@ void CaptureMainWindow::onAboutClicked() {
 }
 
 void CaptureMainWindow::showPreferencesOverlay() {
-    if (m_prefOverlay) {
-        m_prefOverlay->close();
-        m_prefOverlay->deleteLater();
-        m_prefOverlay = nullptr;
-        return;
-    }
-
-    QWidget* target = m_tabs ? m_tabs->parentWidget() : centralWidget();
-    auto* overlay = new PreferencesOverlayWidget(target);
-    m_prefOverlay = overlay;
-    connect(overlay, &QObject::destroyed, this, [this]() {
-        m_prefOverlay = nullptr;
-    });
-
-    overlay->setObjectName("PreferencesOverlay");
-    overlay->setGeometry(target->rect());
-    overlay->setStyleSheet(R"(
-        #PreferencesOverlay {
-            background-color: rgb(20, 22, 28);
-            border: 1px solid rgba(255, 255, 255, 14%);
-            border-top: 1px solid rgba(255, 255, 255, 32%);
-            border-radius: 14px;
-        }
-        #PrefDialogBox {
-            background: transparent;
-            border: none;
-        }
-        QLabel {
-            background: transparent;
-            border: none;
-            color: #e0e5f0;
-        }
-        QLabel:disabled {
-            color: #555b68;
-        }
-    )");
-
-    QVBoxLayout* mainLayout = new QVBoxLayout(overlay);
-    mainLayout->setContentsMargins(0, 0, 0, 0);
-
-    QWidget* dialogBox = new QWidget(overlay);
-    dialogBox->setObjectName("PrefDialogBox");
-    dialogBox->setFixedSize(target->size());
-    overlay->dialogBox = dialogBox;
-
-    QVBoxLayout* boxLayout = new QVBoxLayout(dialogBox);
-    boxLayout->setContentsMargins(24, 18, 24, 18);
-    boxLayout->setSpacing(10);
-
-    // Header row (`⚙️ Preferences & Settings` on left, `✔ DONE` on top right)
-    QHBoxLayout* headerRow = new QHBoxLayout();
-    QLabel* title = new QLabel("⚙️ Preferences & Settings");
-    title->setStyleSheet("font-size: 14px; font-weight: bold; color: #f0f2f5; letter-spacing: 0.5px;");
-
-    QPushButton* btnDone = new QPushButton("✔ DONE", dialogBox);
-    btnDone->setCursor(Qt::PointingHandCursor);
-    btnDone->setFixedSize(76, 24);
-    btnDone->setStyleSheet(R"(
-        QPushButton {
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #007aff, stop:1 #0062cc);
-            color: #ffffff;
-            font-size: 11px;
-            font-weight: bold;
-            border-radius: 5px;
-            border: none;
-        }
-        QPushButton:hover {
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1a8cff, stop:1 #007aff);
-        }
-        QPushButton:pressed {
-            background: #0052ad;
-        }
-    )");
-    connect(btnDone, &QPushButton::clicked, overlay, [overlay]() {
-        overlay->hide();
-        overlay->deleteLater();
-    });
-
-    headerRow->addWidget(title);
-    headerRow->addStretch();
-    headerRow->addWidget(btnDone);
-    boxLayout->addLayout(headerRow);
-
-    // Divider
-    QWidget* line = new QWidget(dialogBox);
-    line->setFixedHeight(1);
-    line->setStyleSheet("background-color: #363a45;");
-    boxLayout->addWidget(line);
-
-    // ScrollArea to gracefully handle any future options that exceed UI height
-    QScrollArea* scrollArea = new QScrollArea(dialogBox);
-    scrollArea->setWidgetResizable(true);
-    scrollArea->setFrameShape(QFrame::NoFrame);
-    scrollArea->setStyleSheet(R"(
-        QScrollArea { background: transparent; border: none; }
-        QScrollArea > QWidget > QWidget { background: transparent; }
-        QScrollBar:vertical {
-            background: rgba(0, 0, 0, 0.15);
-            width: 6px;
-            margin: 0px;
-            border-radius: 3px;
-        }
-        QScrollBar::handle:vertical {
-            background: rgba(255, 255, 255, 0.25);
-            min-height: 20px;
-            border-radius: 3px;
-        }
-        QScrollBar::handle:vertical:hover {
-            background: rgba(255, 255, 255, 0.45);
-        }
-        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-            height: 0px;
-        }
-    )");
-
-    QWidget* scrollContent = new QWidget(scrollArea);
-    scrollContent->setObjectName("ScrollContent");
-    scrollContent->setStyleSheet("background: transparent;");
-    QVBoxLayout* settingsLayout = new QVBoxLayout(scrollContent);
-    settingsLayout->setContentsMargins(0, 4, 6, 4);
-    settingsLayout->setSpacing(12);
-
-    // 1. Debug checkbox/switch row
-    QHBoxLayout* debugRow = new QHBoxLayout();
-    QVBoxLayout* debugTxtLayout = new QVBoxLayout();
-    debugTxtLayout->setSpacing(2);
-    QLabel* lblDebug = new QLabel("Debug Mode (JSON setting)");
-    lblDebug->setStyleSheet("font-size: 12px; font-weight: bold; color: #e0e5f0;");
-    QLabel* lblDebugDesc = new QLabel("Write detailed debug logs (QtDebugMsg) to screencut.log.");
-    lblDebugDesc->setStyleSheet("font-size: 10px; color: #8890a0;");
-    debugTxtLayout->addWidget(lblDebug);
-    debugTxtLayout->addWidget(lblDebugDesc);
-
-    SwitchWidget* toggleDebug = new SwitchWidget(scrollContent);
-    bool isDebugChecked = Config::getValue("debug_mode", false).toBool();
-    toggleDebug->setChecked(isDebugChecked);
-    m_toggles["debug_mode"] = toggleDebug;
-
-    connect(toggleDebug, &SwitchWidget::toggled, this, [](bool checked) {
-        Config::setDebugMode(checked);
-        qDebug() << "[Preferences] Debug mode (config.json) updated:" << checked;
-    });
-
-    debugRow->addLayout(debugTxtLayout);
-    debugRow->addStretch();
-    debugRow->addWidget(toggleDebug);
-    settingsLayout->addLayout(debugRow);
-
-    // 2. Record Limit 1080p switch row
-    QHBoxLayout* limitRow = new QHBoxLayout();
-    QVBoxLayout* limitTxtLayout = new QVBoxLayout();
-    limitTxtLayout->setSpacing(2);
-    QLabel* lblLimit = new QLabel("Record Limit 1080p");
-    lblLimit->setStyleSheet("font-size: 12px; font-weight: bold; color: #e0e5f0;");
-    QLabel* lblLimitDesc = new QLabel("Downscale resolutions over 1920x1080 to 1080p to save CPU/GPU.");
-    lblLimitDesc->setStyleSheet("font-size: 10px; color: #8890a0;");
-    limitTxtLayout->addWidget(lblLimit);
-    limitTxtLayout->addWidget(lblLimitDesc);
-
-    SwitchWidget* toggleLimit = new SwitchWidget(scrollContent);
-    bool isLimitChecked = Config::getValue("limit_1080p", false).toBool();
-    toggleLimit->setChecked(isLimitChecked);
-    m_toggles["limit_1080p"] = toggleLimit;
-
-    connect(toggleLimit, &SwitchWidget::toggled, this, [](bool checked) {
-        Config::setValue("limit_1080p", checked);
-        qDebug() << "[Preferences] Record Limit 1080p updated:" << checked;
-    });
-
-    limitRow->addLayout(limitTxtLayout);
-    limitRow->addStretch();
-    limitRow->addWidget(toggleLimit);
-    settingsLayout->addLayout(limitRow);
-
-    // 3. Hardware Video Acceleration (MP4) switch
-    QHBoxLayout* hwRow = new QHBoxLayout();
-    QVBoxLayout* hwTxtLayout = new QVBoxLayout();
-    hwTxtLayout->setSpacing(2);
-    QLabel* lblHw = new QLabel("Hardware Video Acceleration (MP4)");
-    lblHw->setStyleSheet("font-size: 12px; font-weight: bold; color: #e0e5f0;");
-    QLabel* lblHwDesc = new QLabel("Use GPU acceleration for MP4. Uncheck for software compression.");
-    lblHwDesc->setStyleSheet("font-size: 10px; color: #8890a0;");
-    hwTxtLayout->addWidget(lblHw);
-    hwTxtLayout->addWidget(lblHwDesc);
-
-    SwitchWidget* toggleHw = new SwitchWidget(scrollContent);
-    bool isHwChecked = Config::getValue("hw_accel", true).toBool();
-    toggleHw->setChecked(isHwChecked);
-    m_toggles["hw_accel"] = toggleHw;
-
-    hwRow->addLayout(hwTxtLayout);
-    hwRow->addStretch();
-    hwRow->addWidget(toggleHw);
-    settingsLayout->addLayout(hwRow);
-
-    // 4. Hardware Encoder choice dropdown
-    QHBoxLayout* encRow = new QHBoxLayout();
-    QLabel* lblEnc = new QLabel("Encoder Choice:");
-    lblEnc->setStyleSheet("font-size: 11px; font-weight: bold;");
-
-    QComboBox* comboEnc = new QComboBox(scrollContent);
-    comboEnc->setCursor(Qt::PointingHandCursor);
-    comboEnc->setStyleSheet(R"(
-        QComboBox {
-            background-color: #252830;
-            color: #e0e5f0;
-            border: 1px solid #3d4454;
-            border-radius: 5px;
-            padding: 2px 8px;
-            font-size: 11px;
-            min-width: 200px;
-            max-height: 24px;
-        }
-        QComboBox:hover {
-            border-color: #00a8ff;
-        }
-        QComboBox:disabled {
-            background-color: #181a20;
-            color: #555b68;
-            border: 1px solid #282c36;
-        }
-        QComboBox::drop-down {
-            border: none;
-            width: 20px;
-        }
-        QComboBox QAbstractItemView {
-            background-color: #1e2128;
-            color: #e0e5f0;
-            border: 1px solid #3d4454;
-            selection-background-color: #00a8ff;
-            selection-color: #ffffff;
-        }
-    )");
-
-    auto updateHwAvailability = [toggleHw, lblHw, lblHwDesc, comboEnc, lblEnc](const QList<HwEncoderInfo>& list) {
-        if (!toggleHw || !comboEnc) return;
-        if (list.isEmpty()) {
-            toggleHw->setChecked(false);
-            toggleHw->setEnabled(false);
-            if (lblHw) lblHw->setEnabled(false);
-            if (lblHwDesc) lblHwDesc->setEnabled(false);
-            Config::setValue("hw_accel", false);
-
-            comboEnc->blockSignals(true);
-            comboEnc->clear();
-            comboEnc->addItem("找不到支援的 GPU 硬體壓縮 (停用)", "");
-            comboEnc->setEnabled(false);
-            if (lblEnc) lblEnc->setEnabled(false);
-            comboEnc->blockSignals(false);
-        } else {
-            toggleHw->setEnabled(true);
-            if (lblHw) lblHw->setEnabled(true);
-            if (lblHwDesc) lblHwDesc->setEnabled(true);
-
-            QString savedEnc = Config::getValue("hw_encoder", "").toString();
-            comboEnc->blockSignals(true);
-            comboEnc->clear();
-            comboEnc->addItem("Auto / Best Available (自動偵測推薦)", "");
-            for (const auto& hw : list) {
-                if (hw.codec == "libx264") continue;
-                comboEnc->addItem(hw.displayName, hw.codec);
-            }
-            int idx = comboEnc->findData(savedEnc);
-            if (idx >= 0) comboEnc->setCurrentIndex(idx);
-            comboEnc->blockSignals(false);
-
-            bool isChecked = toggleHw->isChecked();
-            comboEnc->setEnabled(isChecked);
-            if (lblEnc) lblEnc->setEnabled(isChecked);
-        }
-    };
-
-    if (VideoRecorder::isHwDetected()) {
-        updateHwAvailability(VideoRecorder::detectAvailableHwEncoders());
-    } else {
-        comboEnc->addItem("Auto / Best Available (自動偵測推薦)", "");
-        comboEnc->addItem("🔍 正在後台偵測 GPU 加速硬體...", "detecting");
-        QPointer<SwitchWidget> safeToggle = toggleHw;
-        QPointer<QLabel> safeLblHw = lblHw;
-        QPointer<QLabel> safeLblDesc = lblHwDesc;
-        QPointer<QComboBox> safeCombo = comboEnc;
-        QPointer<QLabel> safeLblEnc = lblEnc;
-        VideoRecorder::detectAvailableHwEncodersAsync([safeToggle, safeLblHw, safeLblDesc, safeCombo, safeLblEnc](const QList<HwEncoderInfo>& list) {
-            if (!safeToggle || !safeCombo) return;
-            if (list.isEmpty()) {
-                safeToggle->setChecked(false);
-                safeToggle->setEnabled(false);
-                if (safeLblHw) safeLblHw->setEnabled(false);
-                if (safeLblDesc) safeLblDesc->setEnabled(false);
-                Config::setValue("hw_accel", false);
-
-                safeCombo->blockSignals(true);
-                safeCombo->clear();
-                safeCombo->addItem("找不到支援的 GPU 硬體壓縮 (停用)", "");
-                safeCombo->setEnabled(false);
-                if (safeLblEnc) safeLblEnc->setEnabled(false);
-                safeCombo->blockSignals(false);
-            } else {
-                safeToggle->setEnabled(true);
-                if (safeLblHw) safeLblHw->setEnabled(true);
-                if (safeLblDesc) safeLblDesc->setEnabled(true);
-
-                QString savedEnc = Config::getValue("hw_encoder", "").toString();
-                safeCombo->blockSignals(true);
-                safeCombo->clear();
-                safeCombo->addItem("Auto / Best Available (自動偵測推薦)", "");
-                for (const auto& hw : list) {
-                    if (hw.codec == "libx264") continue;
-                    safeCombo->addItem(hw.displayName, hw.codec);
-                }
-                int idx = safeCombo->findData(savedEnc);
-                if (idx >= 0) safeCombo->setCurrentIndex(idx);
-                safeCombo->blockSignals(false);
-
-                bool isChecked = safeToggle->isChecked();
-                safeCombo->setEnabled(isChecked);
-                if (safeLblEnc) safeLblEnc->setEnabled(isChecked);
-            }
-        });
-    }
-
-    connect(toggleHw, &SwitchWidget::toggled, this, [comboEnc, lblEnc](bool checked) {
-        Config::setValue("hw_accel", checked);
-        comboEnc->setEnabled(checked);
-        lblEnc->setEnabled(checked);
-        qDebug() << "[Preferences] Hardware acceleration updated:" << checked;
-    });
-
-    connect(comboEnc, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [comboEnc](int) {
-        Config::setValue("hw_encoder", comboEnc->currentData().toString());
-        qDebug() << "[Preferences] Hardware encoder choice updated:" << comboEnc->currentData().toString();
-    });
-
-    encRow->addWidget(lblEnc);
-    encRow->addSpacing(8);
-    encRow->addWidget(comboEnc, 1);
-    settingsLayout->addLayout(encRow);
-
-    // 5. Microphone Source dropdown
-    QHBoxLayout* micRow = new QHBoxLayout();
-    QLabel* lblMic = new QLabel("Microphone Source:");
-    lblMic->setStyleSheet("font-size: 11px; font-weight: bold;");
-
-    QComboBox* comboMic = new QComboBox(scrollContent);
-    comboMic->setCursor(Qt::PointingHandCursor);
-    comboMic->setStyleSheet(comboEnc->styleSheet()); // reuse same dark style
-
-    // Populate from Qt Multimedia audio input device list
-    comboMic->addItem("Default System Microphone", QString());
-    {
-        const auto devices = QMediaDevices::audioInputs();
-        for (const QAudioDevice& dev : devices) {
-            comboMic->addItem(dev.description(), QString::fromUtf8(dev.id()));
-        }
-    }
-    {
-        QString savedId = Config::getValue("mic_device", QString()).toString();
-        int idx = comboMic->findData(savedId);
-        if (idx >= 0) comboMic->setCurrentIndex(idx);
-    }
-    connect(comboMic, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [comboMic](int) {
-        QString devId = comboMic->currentData().toString();
-        Config::setValue("mic_device", devId);
-        qDebug() << "[Preferences] Microphone source updated:" << comboMic->currentText() << "id:" << devId;
-    });
-
-    micRow->addWidget(lblMic);
-    micRow->addSpacing(8);
-    micRow->addWidget(comboMic, 1);
-    settingsLayout->addLayout(micRow);
-    settingsLayout->addStretch();
-
-    scrollArea->setWidget(scrollContent);
-    boxLayout->addWidget(scrollArea, 1);
-
-    mainLayout->addWidget(dialogBox);
-
-    overlay->show();
-    overlay->raise();
+    CapturePreferencesDialog* dlg = CapturePreferencesDialog::instance(this);
+    dlg->setModal(true);
+    dlg->setWindowModality(Qt::ApplicationModal);
+    dlg->showNormal();
+    dlg->raise();
+    dlg->activateWindow();
 }
 
 void CaptureMainWindow::showAboutOverlay() {
@@ -896,9 +556,6 @@ void CaptureMainWindow::resizeEvent(QResizeEvent* event) {
     }
     if (m_aboutOverlay && m_aboutOverlay->parentWidget()) {
         m_aboutOverlay->setGeometry(m_aboutOverlay->parentWidget()->rect());
-    }
-    if (m_prefOverlay && m_prefOverlay->parentWidget()) {
-        m_prefOverlay->setGeometry(m_prefOverlay->parentWidget()->rect());
     }
 }
 

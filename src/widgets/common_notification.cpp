@@ -4,14 +4,18 @@
 */
 
 #include "common_notification.h"
+#include "../platform/platform.h"
 #include <QLabel>
 #include <QVBoxLayout>
 #include <QApplication>
 #include <QScreen>
 #include <QTimer>
 #include <QGuiApplication>
+#include <QList>
 
 namespace ScreenCut {
+
+static QList<Notification*> s_activeToasts;
 
 Notification::Notification(const QString& message, QWidget* parent, int duration, bool isError)
     : QWidget(parent)
@@ -20,6 +24,8 @@ Notification::Notification(const QString& message, QWidget* parent, int duration
     setAttribute(Qt::WA_TranslucentBackground);
     setAttribute(Qt::WA_ShowWithoutActivating);
     setAttribute(Qt::WA_TransparentForMouseEvents);
+
+    s_activeToasts.append(this);
 
     QVBoxLayout* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -41,7 +47,9 @@ Notification::Notification(const QString& message, QWidget* parent, int duration
     QTimer::singleShot(duration, this, &QWidget::close);
 }
 
-Notification::~Notification() = default;
+Notification::~Notification() {
+    s_activeToasts.removeAll(this);
+}
 
 void Notification::showToast() {
     adjustSize();
@@ -54,6 +62,20 @@ void Notification::showToast() {
     }
     show();
     raise();
+    Platform::excludeWindowFromCapture(winId());
+}
+
+bool Notification::hideAllToasts() {
+    bool hidAny = false;
+    QList<Notification*> copy = s_activeToasts;
+    for (Notification* toast : copy) {
+        if (toast && toast->isVisible()) {
+            toast->hide();
+            toast->close();
+            hidAny = true;
+        }
+    }
+    return hidAny;
 }
 
 void Notification::showMessage(const QString& message, int duration, bool isError) {

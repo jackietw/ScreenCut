@@ -20,6 +20,7 @@ public:
     void showToast();
 
     static void showMessage(const QString& message, int duration = 3000, bool isError = false);
+    static bool hideAllToasts();
 };
 
 } // namespace ScreenCut

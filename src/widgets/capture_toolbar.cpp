@@ -7,9 +7,15 @@
 #include "../capture/capture_window.h"
 #include "../core/capture_engine.h"
 #include "../resources/IconUtils.h"
+#include "../config.h"
 #include <QCursor>
 #include <QPainter>
 #include <QPainterPath>
+#include <QMenu>
+#include <QAction>
+#include <QActionGroup>
+#include <QMediaDevices>
+#include <QAudioDevice>
 
 namespace ScreenCut {
 
@@ -132,12 +138,52 @@ void CaptureToolBarWidget::setupUi() {
 
   m_btnCursor =
       createCheckableButton("Record Mouse Cursor", SVG_MOUSE, cursorEnabled);
+  m_btnCursor->setPopupMode(QToolButton::MenuButtonPopup);
+  m_btnCursor->setFixedSize(46, 34);
+  m_cursorMenu = new QMenu(m_btnCursor);
+  m_cursorMenu->setStyleSheet(
+      "QMenu { background-color: #282e38; color: #f0f0f0; border: 1px solid "
+      "#384252; border-radius: 6px; padding: 4px 0px; font-size: 13px; }"
+      "QMenu::item { padding: 6px 28px 6px 28px; }"
+      "QMenu::item:selected { background-color: #00a8ff; color: #ffffff; }"
+      "QMenu::indicator { width: 14px; height: 14px; left: 8px; }");
+  QAction *actHl = m_cursorMenu->addAction("Highlight");
+  actHl->setCheckable(true);
+  actHl->setChecked(CaptureEngine::instance()->isSessionHighlightEnabled());
+  connect(actHl, &QAction::toggled, this, [this](bool checked) {
+    Config::setValue("Video_Capture Cursor Highlight", checked);
+    CaptureEngine::instance()->setSessionHighlightEnabled(checked);
+    emit highlightToggled(checked);
+  });
+  QAction *actAnim = m_cursorMenu->addAction("Animation");
+  actAnim->setCheckable(true);
+  actAnim->setChecked(CaptureEngine::instance()->isSessionAnimationEnabled());
+  connect(actAnim, &QAction::toggled, this, [this](bool checked) {
+    Config::setValue("Video_Capture Cursor Animation", checked);
+    CaptureEngine::instance()->setSessionAnimationEnabled(checked);
+    emit animationToggled(checked);
+  });
+  connect(m_cursorMenu, &QMenu::aboutToShow, this,
+          &CaptureToolBarWidget::refreshMenuStates);
+  m_btnCursor->setMenu(m_cursorMenu);
   connect(m_btnCursor, &QToolButton::clicked, this,
           &CaptureToolBarWidget::onCursorClicked);
   m_layout->addWidget(m_btnCursor);
 
   m_btnMic = createCheckableButton(
       "Record Microphone", micEnabled ? SVG_MIC : SVG_MIC_OFF, micEnabled);
+  m_btnMic->setPopupMode(QToolButton::MenuButtonPopup);
+  m_btnMic->setFixedSize(46, 34);
+  m_micMenu = new QMenu(m_btnMic);
+  m_micMenu->setStyleSheet(
+      "QMenu { background-color: #282e38; color: #f0f0f0; border: 1px solid "
+      "#384252; border-radius: 6px; padding: 4px 0px; font-size: 13px; }"
+      "QMenu::item { padding: 6px 28px 6px 28px; }"
+      "QMenu::item:selected { background-color: #00a8ff; color: #ffffff; }"
+      "QMenu::indicator { width: 14px; height: 14px; left: 8px; }");
+  connect(m_micMenu, &QMenu::aboutToShow, this,
+          &CaptureToolBarWidget::onMicMenuAboutToShow);
+  m_btnMic->setMenu(m_micMenu);
   connect(m_btnMic, &QToolButton::clicked, this,
           &CaptureToolBarWidget::onMicClicked);
   m_layout->addWidget(m_btnMic);
@@ -402,6 +448,60 @@ void CaptureToolBarWidget::onImgCursorClicked() {
   bool checked = m_btnImgCursor->isChecked();
   if (CaptureEngine::instance()) {
     CaptureEngine::instance()->setSessionImgCursorEnabled(checked);
+  }
+}
+
+void CaptureToolBarWidget::refreshMenuStates() {
+  if (m_cursorMenu && CaptureEngine::instance()) {
+    const auto actions = m_cursorMenu->actions();
+    if (actions.size() >= 2) {
+      actions[0]->blockSignals(true);
+      actions[0]->setChecked(CaptureEngine::instance()->isSessionHighlightEnabled());
+      actions[0]->blockSignals(false);
+
+      actions[1]->blockSignals(true);
+      actions[1]->setChecked(CaptureEngine::instance()->isSessionAnimationEnabled());
+      actions[1]->blockSignals(false);
+    }
+  }
+}
+
+void CaptureToolBarWidget::onMicMenuAboutToShow() {
+  if (!m_micMenu)
+    return;
+  m_micMenu->clear();
+  QActionGroup *group = new QActionGroup(m_micMenu);
+  group->setExclusive(true);
+
+  QString currentMicId = Config::getValue("mic_device", QString()).toString();
+
+  QAction *actDefault = m_micMenu->addAction("Default Microphone (預設麥克風)");
+  actDefault->setCheckable(true);
+  group->addAction(actDefault);
+  if (currentMicId.isEmpty()) {
+    actDefault->setChecked(true);
+  }
+  connect(actDefault, &QAction::triggered, this, [this]() {
+    Config::setValue("mic_device", QString());
+    Config::setValue("audio_source", "Default Microphone");
+    emit micDeviceChanged("Default Microphone");
+  });
+
+  const auto devices = QMediaDevices::audioInputs();
+  for (const QAudioDevice &dev : devices) {
+    QAction *actDev = m_micMenu->addAction(dev.description());
+    actDev->setCheckable(true);
+    group->addAction(actDev);
+    QString devIdStr = QString::fromUtf8(dev.id());
+    if (devIdStr == currentMicId) {
+      actDev->setChecked(true);
+    }
+    connect(actDev, &QAction::triggered, this,
+            [this, devIdStr, desc = dev.description()]() {
+              Config::setValue("mic_device", devIdStr);
+              Config::setValue("audio_source", desc);
+              emit micDeviceChanged(desc);
+            });
   }
 }
 

@@ -116,6 +116,10 @@ void CaptureEngine::initSessionStateFromConfig() {
     m_sessionImgCursorEnabled =
         Config::getValue("Image_Capture Cursor", false).toBool();
   }
+  m_sessionHighlightEnabled =
+      Config::getValue("Video_Capture Cursor Highlight", true).toBool();
+  m_sessionAnimationEnabled =
+      Config::getValue("Video_Capture Cursor Animation", true).toBool();
 }
 
 void CaptureEngine::setSessionCursorEnabled(bool enabled) {
@@ -126,6 +130,14 @@ void CaptureEngine::setSessionCursorEnabled(bool enabled) {
                                 w->setCaptureCursor(enabled);
                               });
   }
+}
+
+void CaptureEngine::setSessionHighlightEnabled(bool enabled) {
+  m_sessionHighlightEnabled = enabled;
+}
+
+void CaptureEngine::setSessionAnimationEnabled(bool enabled) {
+  m_sessionAnimationEnabled = enabled;
 }
 
 void CaptureEngine::setSessionMicEnabled(bool enabled) {
@@ -306,6 +318,11 @@ void CaptureEngine::startCapture(CaptureMode mode) {
     CaptureMainWindow::instance()->hide();
   }
 
+  bool wasNotificationVisible = Notification::hideAllToasts();
+  if (wasNotificationVisible) {
+    qDebug() << "[CaptureEngine] Hiding visible Notification toasts before capture starts...";
+  }
+
   bool delay5s =
       CaptureMainWindow::instance() &&
       CaptureMainWindow::instance()->isSettingEnabled("5 Second Delay");
@@ -324,7 +341,7 @@ void CaptureEngine::startCapture(CaptureMode mode) {
       doActualCapture(mode);
     });
     countdown->startCountdown();
-  } else if (wasVisible) {
+  } else if (wasVisible || wasNotificationVisible) {
     QTimer::singleShot(250, this, [this, mode]() { doActualCapture(mode); });
   } else {
     doActualCapture(mode);
@@ -332,6 +349,11 @@ void CaptureEngine::startCapture(CaptureMode mode) {
 }
 
 void CaptureEngine::doActualCapture(CaptureMode mode) {
+  if (Notification::hideAllToasts()) {
+    qDebug() << "[CaptureEngine] Notification toast was visible right at doActualCapture. Hiding and waiting 250ms...";
+    QTimer::singleShot(250, this, [this, mode]() { doActualCapture(mode); });
+    return;
+  }
   m_isPendingCapture = false;
   initSessionStateFromConfig();
   m_fullDesktopSnapshot = captureAllScreens();
@@ -517,7 +539,7 @@ void CaptureEngine::doActualCapture(CaptureMode mode) {
 #endif
   m_overlayWidget->activateWindow();
   m_overlayWidget->setFocus();
-  Platform::elevateWindowAboveSystemBars(m_overlayWidget->winId());
+  Platform::elevateWindowAboveSystemBars(m_overlayWidget->winId(), false);
 }
 
 void CaptureEngine::startRegionCapture() { startCapture(CaptureMode::Region); }
@@ -932,7 +954,7 @@ void RegionSelectWidget::setVideoRecordingActive(bool active) {
     }
     show();
     raise();
-    Platform::elevateWindowAboveSystemBars(winId());
+    Platform::elevateWindowAboveSystemBars(winId(), false);
   }
   update();
 }
@@ -1001,6 +1023,9 @@ void RegionSelectWidget::paintEvent(QPaintEvent * /*event*/) {
     highlightRect = rect();
   }
 
+  bool magnifierVisible = !m_isCountingDown &&
+      (!m_selectionConfirmed || m_isSelecting || m_activeHandle != 0);
+
   if (highlightRect.isValid() && !highlightRect.isEmpty()) {
     // Draw mask excluding the highlighted region using QPainterPath
     QPainterPath path;
@@ -1050,7 +1075,7 @@ void RegionSelectWidget::paintEvent(QPaintEvent * /*event*/) {
     }
 
     // 4. Draw dimensions tooltip (Always show when not recording/countdown so upper dimensions update when dragging)
-    if (!m_isCountingDown && !m_isVideoRecordingActive) {
+    if (!m_isCountingDown && !m_isVideoRecordingActive && !magnifierVisible) {
       drawDimensionsTooltip(painter, highlightRect);
     }
   } else {
@@ -1060,9 +1085,8 @@ void RegionSelectWidget::paintEvent(QPaintEvent * /*event*/) {
 
   // 5. Draw magnifier loupe near mouse cursor during aiming or
   // resizing/selecting
-  if (!m_isCountingDown &&
-      (!m_selectionConfirmed || m_isSelecting || m_activeHandle != 0)) {
-    drawMagnifier(painter, m_currentMousePos);
+  if (magnifierVisible) {
+    drawMagnifier(painter, m_currentMousePos, highlightRect);
   }
 }
 
@@ -1070,7 +1094,7 @@ void RegionSelectWidget::drawDimensionsTooltip(QPainter &painter,
                                                const QRect &rect) {
   QString dimText = QString("%1 × %2").arg(rect.width()).arg(rect.height());
   QFont font = painter.font();
-  font.setPointSize(10);
+  font.setPointSize(12);
   font.setBold(true);
   painter.setFont(font);
 
@@ -1095,7 +1119,7 @@ void RegionSelectWidget::drawDimensionsTooltip(QPainter &painter,
   painter.drawText(tooltipRect, Qt::AlignCenter, dimText);
 }
 
-void RegionSelectWidget::drawMagnifier(QPainter &painter, const QPoint &pos) {
+void RegionSelectWidget::drawMagnifier(QPainter &painter, const QPoint &pos, const QRect &highlightRect) {
   // Draw full screen crosshair guidelines
   painter.save();
   QColor themeColor = (m_mode == CaptureMode::VideoRegion)
@@ -1108,13 +1132,20 @@ void RegionSelectWidget::drawMagnifier(QPainter &painter, const QPoint &pos) {
 
   int loupeSize = 120;
   int zoomFactor = 6;
+  int totalHeight = loupeSize + 4 + 26 + 4 + 26; // 180
 
   QPoint loupePos = pos + QPoint(20, 20);
   if (loupePos.x() + loupeSize > width()) {
     loupePos.setX(pos.x() - loupeSize - 20);
   }
-  if (loupePos.y() + loupeSize > height()) {
-    loupePos.setY(pos.y() - loupeSize - 20);
+  if (loupePos.x() < 0) {
+    loupePos.setX(0);
+  }
+  if (loupePos.y() + totalHeight > height()) {
+    loupePos.setY(pos.y() - totalHeight - 20);
+  }
+  if (loupePos.y() < 0) {
+    loupePos.setY(0);
   }
 
   painter.save();
@@ -1205,17 +1236,27 @@ void RegionSelectWidget::drawMagnifier(QPainter &painter, const QPoint &pos) {
                          .arg(qBlue(rgb), 2, 16, QChar('0'))
                          .toUpper();
 
-  QRect colorRect(loupePos.x(), loupePos.y() + loupeSize + 4, loupeSize, 22);
+  QRect colorRect(loupePos.x(), loupePos.y() + loupeSize + 4, loupeSize, 26);
   painter.setPen(Qt::NoPen);
   painter.setBrush(QColor(25, 28, 36, 230));
   painter.drawRoundedRect(colorRect, 4, 4);
 
   painter.setPen(Qt::white);
   QFont font = painter.font();
-  font.setPointSize(8);
+  font.setPointSize(12);
   font.setBold(true);
   painter.setFont(font);
   painter.drawText(colorRect, Qt::AlignCenter, hexColor);
+
+  // Draw size/dimension tooltip below color hex tooltip
+  QString dimText = QString("%1 × %2").arg(highlightRect.width()).arg(highlightRect.height());
+  QRect sizeRect(loupePos.x(), colorRect.bottom() + 4, loupeSize, 26);
+  painter.setPen(Qt::NoPen);
+  painter.setBrush(QColor(25, 28, 36, 230));
+  painter.drawRoundedRect(sizeRect, 4, 4);
+
+  painter.setPen(Qt::white);
+  painter.drawText(sizeRect, Qt::AlignCenter, dimText);
 }
 
 void RegionSelectWidget::mousePressEvent(QMouseEvent *event) {
@@ -1618,6 +1659,23 @@ void RegionSelectWidget::ensureToolbarAndShow() {
               if (m_statusCard)
                 m_statusCard->refreshStatus();
             });
+    connect(m_toolbar, &CaptureToolBarWidget::highlightToggled, this,
+            [this](bool checked) {
+              CaptureEngine::instance()->setSessionHighlightEnabled(checked);
+              if (m_statusCard)
+                m_statusCard->refreshStatus();
+            });
+    connect(m_toolbar, &CaptureToolBarWidget::animationToggled, this,
+            [this](bool checked) {
+              CaptureEngine::instance()->setSessionAnimationEnabled(checked);
+              if (m_statusCard)
+                m_statusCard->refreshStatus();
+            });
+    connect(m_toolbar, &CaptureToolBarWidget::micDeviceChanged, this,
+            [this](const QString &) {
+              if (m_statusCard)
+                m_statusCard->refreshStatus();
+            });
   }
 
   if (m_mode == CaptureMode::VideoRegion && !m_statusCard) {
@@ -1632,6 +1690,7 @@ void RegionSelectWidget::ensureToolbarAndShow() {
   updateToolbarPosition();
   m_toolbar->show();
   m_toolbar->raise();
+  Platform::elevateWindowAboveSystemBars(m_toolbar->winId());
   update();
 }
 
@@ -1656,6 +1715,14 @@ void RegionSelectWidget::executePin() {
     pin->show();
     emit cancelled();
   }
+}
+
+CaptureStatusWidget* CaptureEngine::statusCard() const {
+  return m_overlayWidget ? m_overlayWidget->statusCard() : nullptr;
+}
+
+CaptureToolBarWidget* CaptureEngine::toolbar() const {
+  return m_overlayWidget ? m_overlayWidget->toolbar() : nullptr;
 }
 
 // ============================================================================
