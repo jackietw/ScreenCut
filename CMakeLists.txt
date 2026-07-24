@@ -60,6 +60,8 @@ else()
     list(APPEND SHARED_SOURCES src/platform/platform_mac.cpp)
 endif()
 
+list(APPEND SHARED_SOURCES src/resources/resources.qrc)
+
 # Capture application sources
 set(CAPTURE_SOURCES
     src/main.cpp
@@ -79,6 +81,8 @@ set(CAPTURE_SOURCES
     src/capture/capture_window.cpp
     src/capture/capture_preferences.h
     src/capture/capture_preferences.cpp
+    src/capture/capture_permissions.h
+    src/capture/capture_permissions.cpp
     ${SHARED_SOURCES}
 )
 
@@ -202,30 +206,37 @@ elseif(APPLE)
         message(WARNING "[ScreenCut] ffmpeg NOT found. Video recording will not work. Install via: brew install ffmpeg")
     endif()
 
+    # Determine signing identity from environment, default to ad-hoc ("-")
+    set(MAC_SIGN_IDENTITY "-")
+    if(DEFINED ENV{APPLE_TEAM_ID})
+        set(MAC_SIGN_IDENTITY "$ENV{APPLE_TEAM_ID}")
+        message(STATUS "[ScreenCut] Using Apple Team ID for signing: ${MAC_SIGN_IDENTITY}")
+    endif()
+
     if(MACDEPLOYQT_EXECUTABLE)
         if(FFMPEG_EXECUTABLE)
             add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -DAPP_DIR="${CMAKE_BINARY_DIR}/ScreenCut.app" -DMACDEPLOYQT="${MACDEPLOYQT_EXECUTABLE}" -P "${CMAKE_SOURCE_DIR}/platform/macos/deploy_mac.cmake"
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FFMPEG_EXECUTABLE}" "${CMAKE_BINARY_DIR}/ScreenCut.app/Contents/MacOS/ffmpeg"
-                COMMAND codesign --force --deep --sign "-"
+                COMMAND codesign --force --deep --sign "${MAC_SIGN_IDENTITY}"
                         --entitlements "${CMAKE_SOURCE_DIR}/platform/macos/ScreenCut.entitlements"
                         "${CMAKE_BINARY_DIR}/ScreenCut.app"
-                COMMENT "Deploying Qt Frameworks, bundling ffmpeg, and code-signing ScreenCut.app..."
+                COMMENT "Deploying Qt Frameworks, bundling ffmpeg, and code-signing ScreenCut.app (Identity: ${MAC_SIGN_IDENTITY})..."
             )
         else()
             add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -DAPP_DIR="${CMAKE_BINARY_DIR}/ScreenCut.app" -DMACDEPLOYQT="${MACDEPLOYQT_EXECUTABLE}" -P "${CMAKE_SOURCE_DIR}/platform/macos/deploy_mac.cmake"
-                COMMAND codesign --force --deep --sign "-"
+                COMMAND codesign --force --deep --sign "${MAC_SIGN_IDENTITY}"
                         --entitlements "${CMAKE_SOURCE_DIR}/platform/macos/ScreenCut.entitlements"
                         "${CMAKE_BINARY_DIR}/ScreenCut.app"
-                COMMENT "Deploying Qt Frameworks and code-signing ScreenCut.app..."
+                COMMENT "Deploying Qt Frameworks and code-signing ScreenCut.app (Identity: ${MAC_SIGN_IDENTITY})..."
             )
         endif()
         add_custom_command(TARGET SCEditor POST_BUILD
             COMMAND ${CMAKE_COMMAND} -DAPP_DIR="${CMAKE_BINARY_DIR}/SCEditor.app" -DMACDEPLOYQT="${MACDEPLOYQT_EXECUTABLE}" -P "${CMAKE_SOURCE_DIR}/platform/macos/deploy_mac.cmake"
-            COMMAND codesign --force --deep --sign "-"
+            COMMAND codesign --force --deep --sign "${MAC_SIGN_IDENTITY}"
                     "${CMAKE_BINARY_DIR}/SCEditor.app"
-            COMMENT "Deploying Qt Frameworks and code-signing SCEditor.app..."
+            COMMENT "Deploying Qt Frameworks and code-signing SCEditor.app (Identity: ${MAC_SIGN_IDENTITY})..."
         )
         # Prevent concurrent macdeployqt runs when building targets in parallel (e.g. make -j)
         add_dependencies(SCEditor ${PROJECT_NAME})

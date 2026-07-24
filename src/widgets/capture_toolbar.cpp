@@ -16,6 +16,7 @@
 #include <QActionGroup>
 #include <QMediaDevices>
 #include <QAudioDevice>
+#include <QStyle>
 
 namespace ScreenCut {
 
@@ -42,11 +43,12 @@ void CaptureToolBarWidget::paintEvent(QPaintEvent * /*event*/) {
 }
 
 void CaptureToolBarWidget::setupUi() {
-  setStyleSheet("QToolButton { "
-                "   background: rgba(255, 255, 255, 0.08); "
+  QString styleStr = 
+                "QToolButton { "
+                "   background-color: rgba(255, 255, 255, 0.08); "
                 "   border: 1px solid rgba(255, 255, 255, 0.12); "
                 "   border-radius: 6px; "
-                "   padding: 6px; "
+                "   padding: 0px; "
                 "}"
                 "QToolButton:hover { "
                 "   background-color: #00a8ff; "
@@ -59,13 +61,40 @@ void CaptureToolBarWidget::setupUi() {
                 "   background-color: rgba(0, 168, 255, 0.4); "
                 "   border: 1px solid #00a8ff; "
                 "}"
+                "QToolButton[split_left=\"true\"] { "
+                "   border-top-right-radius: 0px; "
+                "   border-bottom-right-radius: 0px; "
+                "   border-right: none; "
+                "}"
+                "QToolButton[split_left=\"true\"]:checked { "
+                "   border-right: none; "
+                "}"
+                "QToolButton[split_right=\"true\"] { "
+                "   border-top-left-radius: 0px; "
+                "   border-bottom-left-radius: 0px; "
+                "   border-left: 1px solid rgba(255, 255, 255, 0.15); "
+                "}"
+                "QToolButton[split_right=\"true\"]:hover { "
+                "   background-color: rgba(255, 255, 255, 0.16); "
+                "}"
+                "QToolButton[split_right=\"true\"][checked_state=\"true\"] { "
+                "   background-color: rgba(0, 168, 255, 0.4); "
+                "   border: 1px solid #00a8ff; "
+                "   border-left: 1px solid #00a8ff; "
+                "}"
+                "QToolButton[split_right=\"true\"][checked_state=\"true\"]:hover { "
+                "   background-color: rgba(0, 168, 255, 0.5); "
+                "   border: 1px solid #00a8ff; "
+                "   border-left: 1px solid #00a8ff; "
+                "}"
                 "QLabel { "
                 "   color: #e0e6ed; "
-                "   font-family: 'Segoe UI', sans-serif; "
+                "   font-family: 'Noto Sans', sans-serif; "
                 "   font-size: 13px; "
                 "   font-weight: 600; "
                 "   padding: 0 6px; "
-                "}");
+                "}";
+  setStyleSheet(styleStr);
 
   m_layout = new QHBoxLayout(this);
   m_layout->setContentsMargins(8, 6, 8, 6);
@@ -136,11 +165,25 @@ void CaptureToolBarWidget::setupUi() {
         CaptureMainWindow::instance()->isSettingEnabled("Record System Audio");
   }
 
+  QWidget* cursorContainer = new QWidget(this);
+  QHBoxLayout* cursorLayout = new QHBoxLayout(cursorContainer);
+  cursorLayout->setContentsMargins(0, 0, 0, 0);
+  cursorLayout->setSpacing(0);
   m_btnCursor =
       createCheckableButton("Record Mouse Cursor", SVG_MOUSE, cursorEnabled);
-  m_btnCursor->setPopupMode(QToolButton::MenuButtonPopup);
-  m_btnCursor->setFixedSize(46, 34);
-  m_cursorMenu = new QMenu(m_btnCursor);
+  m_btnCursor->setProperty("split_left", true);
+  m_btnCursor->setFixedSize(32, 34);
+  QToolButton* cursorArrow = new QToolButton(this);
+  cursorArrow->setProperty("split_right", true);
+  cursorArrow->setProperty("checked_state", cursorEnabled);
+  cursorArrow->setFixedSize(16, 34);
+  cursorArrow->setCursor(Qt::PointingHandCursor);
+  cursorArrow->setIcon(createSvgIcon("<svg xmlns=\"http://www.w3.org/2000/svg\" height=\"24px\" viewBox=\"0 -960 960 960\" width=\"24px\" fill=\"#FFFFFF\"><path d=\"M480-345 240-585l56-56 184 183 184-183 56 56-240 240Z\"/></svg>", 16, 16));
+  cursorArrow->setIconSize(QSize(16, 16));
+  cursorLayout->addWidget(m_btnCursor);
+  cursorLayout->addWidget(cursorArrow);
+
+  m_cursorMenu = new QMenu(cursorContainer);
   m_cursorMenu->setStyleSheet(
       "QMenu { background-color: #282e38; color: #f0f0f0; border: 1px solid "
       "#384252; border-radius: 6px; padding: 4px 0px; font-size: 13px; }"
@@ -165,16 +208,38 @@ void CaptureToolBarWidget::setupUi() {
   });
   connect(m_cursorMenu, &QMenu::aboutToShow, this,
           &CaptureToolBarWidget::refreshMenuStates);
-  m_btnCursor->setMenu(m_cursorMenu);
+  connect(cursorArrow, &QToolButton::clicked, this, [this, cursorArrow]() {
+      QPoint pos = cursorArrow->mapToGlobal(QPoint(0, cursorArrow->height() + 4));
+      m_cursorMenu->exec(pos);
+  });
+  connect(m_btnCursor, &QToolButton::toggled, this, [cursorArrow](bool checked){
+      cursorArrow->setProperty("checked_state", checked);
+      cursorArrow->style()->unpolish(cursorArrow);
+      cursorArrow->style()->polish(cursorArrow);
+  });
   connect(m_btnCursor, &QToolButton::clicked, this,
           &CaptureToolBarWidget::onCursorClicked);
-  m_layout->addWidget(m_btnCursor);
+  m_layout->addWidget(cursorContainer);
 
+  QWidget* micContainer = new QWidget(this);
+  QHBoxLayout* micLayout = new QHBoxLayout(micContainer);
+  micLayout->setContentsMargins(0, 0, 0, 0);
+  micLayout->setSpacing(0);
   m_btnMic = createCheckableButton(
       "Record Microphone", micEnabled ? SVG_MIC : SVG_MIC_OFF, micEnabled);
-  m_btnMic->setPopupMode(QToolButton::MenuButtonPopup);
-  m_btnMic->setFixedSize(46, 34);
-  m_micMenu = new QMenu(m_btnMic);
+  m_btnMic->setProperty("split_left", true);
+  m_btnMic->setFixedSize(32, 34);
+  QToolButton* micArrow = new QToolButton(this);
+  micArrow->setProperty("split_right", true);
+  micArrow->setProperty("checked_state", micEnabled);
+  micArrow->setFixedSize(16, 34);
+  micArrow->setCursor(Qt::PointingHandCursor);
+  micArrow->setIcon(createSvgIcon("<svg xmlns=\"http://www.w3.org/2000/svg\" height=\"24px\" viewBox=\"0 -960 960 960\" width=\"24px\" fill=\"#FFFFFF\"><path d=\"M480-345 240-585l56-56 184 183 184-183 56 56-240 240Z\"/></svg>", 16, 16));
+  micArrow->setIconSize(QSize(16, 16));
+  micLayout->addWidget(m_btnMic);
+  micLayout->addWidget(micArrow);
+
+  m_micMenu = new QMenu(micContainer);
   m_micMenu->setStyleSheet(
       "QMenu { background-color: #282e38; color: #f0f0f0; border: 1px solid "
       "#384252; border-radius: 6px; padding: 4px 0px; font-size: 13px; }"
@@ -183,10 +248,18 @@ void CaptureToolBarWidget::setupUi() {
       "QMenu::indicator { width: 14px; height: 14px; left: 8px; }");
   connect(m_micMenu, &QMenu::aboutToShow, this,
           &CaptureToolBarWidget::onMicMenuAboutToShow);
-  m_btnMic->setMenu(m_micMenu);
+  connect(micArrow, &QToolButton::clicked, this, [this, micArrow]() {
+      QPoint pos = micArrow->mapToGlobal(QPoint(0, micArrow->height() + 4));
+      m_micMenu->exec(pos);
+  });
+  connect(m_btnMic, &QToolButton::toggled, this, [micArrow](bool checked){
+      micArrow->setProperty("checked_state", checked);
+      micArrow->style()->unpolish(micArrow);
+      micArrow->style()->polish(micArrow);
+  });
   connect(m_btnMic, &QToolButton::clicked, this,
           &CaptureToolBarWidget::onMicClicked);
-  m_layout->addWidget(m_btnMic);
+  m_layout->addWidget(micContainer);
 
   m_btnSysAudio = createCheckableButton(
       "Record System Audio",

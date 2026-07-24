@@ -51,6 +51,12 @@ void elevateWindowAboveSystemBars(WId winId, bool joinAllSpaces) {
     Q_UNUSED(joinAllSpaces);
 }
 
+void enableWindowAllSpacesAndMissionControl(WId winId) {
+    // Windows does not have Mission Control or Spaces in the same way as macOS
+    Q_UNUSED(winId);
+}
+
+
 QStringList getAudioInputArgs(const QString& micDeviceName) {
     QStringList args;
     if (micDeviceName.isEmpty()) return args;
@@ -64,11 +70,11 @@ QStringList getAudioInputArgs(const QString& micDeviceName) {
     return args;
 }
 
-bool checkAndRequestScreenCapturePermission(bool requestIfMissing, bool showPrompt) {
-    Q_UNUSED(requestIfMissing);
-    Q_UNUSED(showPrompt);
-    return true;
-}
+bool checkScreenCapturePermission() { return true; }
+bool checkMicrophonePermission() { return true; }
+bool checkDesktopFolderPermission() { return true; }
+bool checkDownloadFolderPermission() { return true; }
+void openSystemSettings(const QString&) {}
 
 } // namespace Platform
 } // namespace ScreenCut

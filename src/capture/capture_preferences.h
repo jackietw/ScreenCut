@@ -27,16 +27,18 @@ public:
     void updateHwEncodersList();
 
 protected:
-    void closeEvent(QCloseEvent* event) override;
+    void closeEvent(QCloseEvent *event) override;
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
 
 private:
     void setupUi();
     void setupStyleSheet();
     QWidget* createGeneralPage();
     QWidget* createVideoAudioPage();
-    QWidget* createCursorPage();
 
     static CapturePreferencesDialog* s_instance;
+    QPoint m_dragPos;
 
     QListWidget* m_sidebar = nullptr;
     QStackedWidget* m_pages = nullptr;

@@ -51,13 +51,17 @@ void enableWindowAllSpacesAndMissionControl(WId winId);
 QStringList getAudioInputArgs(const QString& micDeviceName);
 
 /**
- * Check whether the application has permission to record/capture the screen across all open windows.
- * - macOS (10.15+): Checks CGPreflightScreenCaptureAccess(). If false, returns only wallpaper when capturing.
- *   If requestIfMissing is true, calls CGRequestScreenCaptureAccess().
- *   If showPrompt is true, displays a clear GUI warning explaining why windows disappear and how to fix in System Settings.
- * - Windows/Linux: Always returns true.
+ * Check permissions (macOS specific, always return true on other platforms)
  */
-bool checkAndRequestScreenCapturePermission(bool requestIfMissing = true, bool showPrompt = true);
+bool checkScreenCapturePermission();
+bool checkMicrophonePermission();
+bool checkDesktopFolderPermission();
+bool checkDownloadFolderPermission();
+
+/**
+ * Open system settings for a specific permission category (macOS specific)
+ */
+void openSystemSettings(const QString& category);
 
 } // namespace Platform
 } // namespace ScreenCut

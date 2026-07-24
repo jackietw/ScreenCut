@@ -17,6 +17,8 @@
 #include "../version.h"
 #include "../config.h"
 #include "../resources/IconUtils.h"
+#include <QFontDatabase>
+#include <QFont>
 
 using namespace ScreenCut;
 
@@ -27,6 +29,15 @@ int main(int argc, char *argv[]) {
     app.setOrganizationName(SCREENCUT_ORG_NAME);
     app.setOrganizationDomain(SCREENCUT_ORG_DOMAIN);
     app.setApplicationVersion(SCREENCUT_VERSION_STR);
+
+    int fontId = QFontDatabase::addApplicationFont(":/fonts/NotoSans-Regular.ttf");
+    QFontDatabase::addApplicationFont(":/fonts/NotoSans-SemiBold.ttf");
+    if (fontId != -1) {
+        QString family = QFontDatabase::applicationFontFamilies(fontId).at(0);
+        QFont defaultFont(family);
+        defaultFont.setPixelSize(13);
+        app.setFont(defaultFont);
+    }
 
     QCommandLineParser parser;
     parser.setApplicationDescription("ScreenCut Editor - Screenshot Annotation Tool");

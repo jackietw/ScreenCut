@@ -33,10 +33,29 @@
 #include <QDir>
 #include <QDateTime>
 #include <QStandardPaths>
+#include <QElapsedTimer>
+#include <QFontDatabase>
+#include <QFont>
+
+static QElapsedTimer g_startupTimer;
 
 using namespace ScreenCut;
 
+class QuitEventFilter : public QObject {
+public:
+    QuitEventFilter(QObject *parent = nullptr) : QObject(parent) {}
+    bool eventFilter(QObject *obj, QEvent *event) override {
+        if (event->type() == QEvent::Quit) {
+            qDebug() << "[QuitEventFilter] Received QEvent::Quit. Force quitting application.";
+            ::exit(0);
+        }
+        return QObject::eventFilter(obj, event);
+    }
+};
+
 int main(int argc, char *argv[]) {
+    g_startupTimer.start();
+    qDebug() << "[PERF] main() started:" << g_startupTimer.elapsed() << "ms";
     // 1. High DPI scaling attributes are enabled by default in Qt 6
     QApplication app(argc, argv);
     app.setApplicationName(SCREENCUT_APP_NAME);
@@ -44,6 +63,20 @@ int main(int argc, char *argv[]) {
     app.setOrganizationDomain(SCREENCUT_ORG_DOMAIN);
     app.setApplicationVersion(SCREENCUT_VERSION_STR);
     app.setQuitOnLastWindowClosed(false); // Keep running in background tray
+    app.installEventFilter(new QuitEventFilter(&app));
+
+    int fontId = QFontDatabase::addApplicationFont(":/fonts/NotoSans-Regular.ttf");
+    QFontDatabase::addApplicationFont(":/fonts/NotoSans-SemiBold.ttf");
+    if (fontId != -1) {
+        QString family = QFontDatabase::applicationFontFamilies(fontId).at(0);
+        QFont defaultFont(family);
+        defaultFont.setPixelSize(13);
+        app.setFont(defaultFont);
+        qDebug() << "[Main] Loaded and set default font to:" << family;
+    } else {
+        qDebug() << "[Main] Warning: Failed to load NotoSans font from resources!";
+    }
+
 
     QCommandLineParser parser;
     parser.setApplicationDescription("ScreenCut - Native Screen Capture Tool");
@@ -71,6 +104,7 @@ int main(int argc, char *argv[]) {
 
     // Initialize global configuration and logging system
     Config::setupLogging();
+    qDebug() << "[PERF] Config::setupLogging() finished:" << g_startupTimer.elapsed() << "ms";
     qDebug() << "[Main] ScreenCut Application started. Version:" << SCREENCUT_VERSION_STR << "| DebugMode:" << Config::isDebugMode();
 
     // 2. Single instance lock using QSharedMemory (Temporarily disabled to prevent Windows zombie memory lock during dev!)
@@ -127,7 +161,29 @@ int main(int argc, char *argv[]) {
     trayMenu->addAction(quitAction);
 
     trayIcon.setContextMenu(trayMenu);
+
+    QObject::connect(trayMenu, &QMenu::aboutToShow, [=]() {
+        bool isSettingsOpen = false;
+        for (QWidget *widget : QApplication::topLevelWidgets()) {
+            if (widget->isVisible()) {
+                QString name = widget->objectName();
+                if (name == "CapturePreferencesDialog" || name == "PermissionsWindow") {
+                    isSettingsOpen = true;
+                    break;
+                }
+            }
+        }
+        
+        regionAction->setEnabled(!isSettingsOpen);
+        windowAction->setEnabled(!isSettingsOpen);
+        scrollAction->setEnabled(!isSettingsOpen);
+        fullScreenAction->setEnabled(!isSettingsOpen);
+        openMainAction->setEnabled(!isSettingsOpen);
+        prefAction->setEnabled(!isSettingsOpen);
+    });
+
     trayIcon.show();
+    qDebug() << "[PERF] Tray icon created and shown:" << g_startupTimer.elapsed() << "ms";
 
     // 4. Connect signals
     QObject::connect(openMainAction, &QAction::triggered, []() {
@@ -164,7 +220,10 @@ int main(int argc, char *argv[]) {
         CaptureMainWindow::instance()->raise();
         CaptureMainWindow::instance()->showAboutOverlay();
     });
-    QObject::connect(quitAction, &QAction::triggered, &app, &QApplication::quit);
+    QObject::connect(quitAction, &QAction::triggered, []() {
+        qDebug() << "[Main] User clicked Exit from tray menu. Force quitting.";
+        ::exit(0);
+    });
 
     QObject::connect(&trayIcon, &QSystemTrayIcon::activated, [](QSystemTrayIcon::ActivationReason reason) {
         if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick) {
@@ -259,9 +318,13 @@ int main(int argc, char *argv[]) {
     Notification::showMessage(QString("%1 Ready\nClick tray icon to capture screen!").arg(SCREENCUT_APP_NAME), 3000);
 
     // 6. Show CaptureMainWindow on launch so user gets immediate visual feedback matching the Python prototype!
+    qDebug() << "[PERF] Before QTimer::singleShot:" << g_startupTimer.elapsed() << "ms";
     QTimer::singleShot(100, []() {
+        qDebug() << "[PERF] CaptureMainWindow instance about to be called:" << g_startupTimer.elapsed() << "ms";
         CaptureMainWindow::instance()->show();
+        qDebug() << "[PERF] CaptureMainWindow shown on screen:" << g_startupTimer.elapsed() << "ms";
     });
 
+    qDebug() << "[PERF] Entering app.exec():" << g_startupTimer.elapsed() << "ms";
     return app.exec();
 }

@@ -298,15 +298,7 @@ void CaptureEngine::startCapture(CaptureMode mode) {
     qWarning() << "[CaptureEngine] Capture already pending, ignoring request.";
     return;
   }
-  if (!Platform::checkAndRequestScreenCapturePermission(true, true)) {
-    qWarning() << "[CaptureEngine] Screen capture permission not granted on macOS. Aborting capture start.";
-    if (CaptureMainWindow::instance() && !CaptureMainWindow::instance()->isVisible()) {
-      CaptureMainWindow::instance()->showNormal();
-      CaptureMainWindow::instance()->activateWindow();
-      CaptureMainWindow::instance()->raise();
-    }
-    return;
-  }
+
   m_currentMode = mode;
   m_isPendingCapture = true;
 
@@ -801,7 +793,9 @@ WindowInfo CaptureEngine::findWindowAt(const QPoint &globalPos) {
         int logTop = qRound(bounds.origin.y) - virtualGeometry.top();
         int logWidth = qRound(bounds.size.width);
         int logHeight = qRound(bounds.size.height);
+        
         info.rect = QRect(logLeft, logTop, logWidth, logHeight);
+
 
         // Window title
         CFStringRef nameRef =

@@ -84,7 +84,7 @@ void CaptureMainWindow::setupStyleSheet() {
             border-top: 1px solid rgba(255, 255, 255, 32%); /* macOS Liquid Glass Specular Highlight top border */
             border-radius: 14px;
         }
-        QLabel { color: #f0f2f5; font-size: 13px; font-family: 'Segoe UI', '-apple-system', sans-serif; }
+        QLabel { color: #f0f2f5; font-size: 13px; font-family: 'Noto Sans', sans-serif; }
         QTabWidget, QTabWidget::pane { background: transparent; border: 0; }
         QTabWidget::tab-bar { alignment: left; left: 0px; }
         QTabBar { qproperty-expanding: 0; }
@@ -423,10 +423,6 @@ QWidget* CaptureMainWindow::createVideoTab() {
 
 void CaptureMainWindow::onCaptureClicked() {
     qDebug() << "[CaptureMainWindow] Capture button clicked.";
-    if (!Platform::checkAndRequestScreenCapturePermission(true, true)) {
-        qWarning() << "[CaptureMainWindow] Screen capture permission not granted on macOS. Aborting capture start.";
-        return;
-    }
     qDebug() << "[CaptureMainWindow] Hiding window before capture...";
     hide();
     bool scrollCapture = isSettingEnabled("Scroll Capture");
@@ -446,10 +442,6 @@ void CaptureMainWindow::onCaptureClicked() {
 
 void CaptureMainWindow::onRecordClicked() {
     qDebug() << "[CaptureMainWindow] Record button clicked.";
-    if (!Platform::checkAndRequestScreenCapturePermission(true, true)) {
-        qWarning() << "[CaptureMainWindow] Screen capture permission not granted on macOS. Aborting video record start.";
-        return;
-    }
     qDebug() << "[CaptureMainWindow] Hiding window before video capture...";
     hide();
     int hideDelay = 250;
@@ -481,7 +473,7 @@ void CaptureMainWindow::onAboutClicked() {
 void CaptureMainWindow::showPreferencesOverlay() {
     CapturePreferencesDialog* dlg = CapturePreferencesDialog::instance(this);
     dlg->setModal(true);
-    dlg->setWindowModality(Qt::ApplicationModal);
+    dlg->setWindowModality(Qt::WindowModal);
     dlg->showNormal();
     dlg->raise();
     dlg->activateWindow();
