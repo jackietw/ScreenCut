@@ -65,6 +65,8 @@ int main(int argc, char *argv[]) {
     app.setQuitOnLastWindowClosed(false); // Keep running in background tray
     app.installEventFilter(new QuitEventFilter(&app));
 
+    QFont systemFont = app.font();
+
     int fontId = QFontDatabase::addApplicationFont(":/fonts/NotoSans-Regular.ttf");
     QFontDatabase::addApplicationFont(":/fonts/NotoSans-SemiBold.ttf");
     if (fontId != -1) {
@@ -128,6 +130,7 @@ int main(int argc, char *argv[]) {
     trayIcon.setToolTip(QString("%1 %2\n0ms Native Screen Capture Engine").arg(SCREENCUT_APP_NAME, SCREENCUT_VERSION_STR));
 
     QMenu* trayMenu = new QMenu();
+    trayMenu->setFont(systemFont);
     
     QAction* openMainAction = new QAction("📷 Open Capture Window", trayMenu);
     openMainAction->setShortcut(QKeySequence("Ctrl+Shift+C"));

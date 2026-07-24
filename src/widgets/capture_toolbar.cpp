@@ -44,49 +44,6 @@ void CaptureToolBarWidget::paintEvent(QPaintEvent * /*event*/) {
 
 void CaptureToolBarWidget::setupUi() {
   QString styleStr = 
-                "QToolButton { "
-                "   background-color: rgba(255, 255, 255, 0.08); "
-                "   border: 1px solid rgba(255, 255, 255, 0.12); "
-                "   border-radius: 6px; "
-                "   padding: 0px; "
-                "}"
-                "QToolButton:hover { "
-                "   background-color: #00a8ff; "
-                "   border: 1px solid #00a8ff; "
-                "}"
-                "QToolButton:pressed { "
-                "   background-color: #0088cc; "
-                "}"
-                "QToolButton:checked { "
-                "   background-color: rgba(0, 168, 255, 0.4); "
-                "   border: 1px solid #00a8ff; "
-                "}"
-                "QToolButton[split_left=\"true\"] { "
-                "   border-top-right-radius: 0px; "
-                "   border-bottom-right-radius: 0px; "
-                "   border-right: none; "
-                "}"
-                "QToolButton[split_left=\"true\"]:checked { "
-                "   border-right: none; "
-                "}"
-                "QToolButton[split_right=\"true\"] { "
-                "   border-top-left-radius: 0px; "
-                "   border-bottom-left-radius: 0px; "
-                "   border-left: 1px solid rgba(255, 255, 255, 0.15); "
-                "}"
-                "QToolButton[split_right=\"true\"]:hover { "
-                "   background-color: rgba(255, 255, 255, 0.16); "
-                "}"
-                "QToolButton[split_right=\"true\"][checked_state=\"true\"] { "
-                "   background-color: rgba(0, 168, 255, 0.4); "
-                "   border: 1px solid #00a8ff; "
-                "   border-left: 1px solid #00a8ff; "
-                "}"
-                "QToolButton[split_right=\"true\"][checked_state=\"true\"]:hover { "
-                "   background-color: rgba(0, 168, 255, 0.5); "
-                "   border: 1px solid #00a8ff; "
-                "   border-left: 1px solid #00a8ff; "
-                "}"
                 "QLabel { "
                 "   color: #e0e6ed; "
                 "   font-family: 'Noto Sans', sans-serif; "
@@ -101,12 +58,18 @@ void CaptureToolBarWidget::setupUi() {
   m_layout->setSpacing(6);
 
   // --- Image Capture Buttons ---
-  m_btnDone = createToolButton("Confirm Capture (Enter)", SVG_DONE,
-                               SIGNAL(actionConfirm()));
+  ButtonConfig doneCfg;
+  doneCfg.tooltip = "Confirm Capture (Enter)";
+  doneCfg.svgIcon = SVG_DONE;
+  m_btnDone = createButton(doneCfg);
+  connect(m_btnDone, SIGNAL(clicked()), this, SIGNAL(actionConfirm()));
   m_layout->addWidget(m_btnDone);
 
-  m_btnImgCancel =
-      createToolButton("Cancel (Esc)", SVG_CANCEL, SIGNAL(actionCancel()));
+  ButtonConfig cancelCfg;
+  cancelCfg.tooltip = "Cancel (Esc)";
+  cancelCfg.svgIcon = SVG_CANCEL;
+  m_btnImgCancel = createButton(cancelCfg);
+  connect(m_btnImgCancel, SIGNAL(clicked()), this, SIGNAL(actionCancel()));
   m_layout->addWidget(m_btnImgCancel);
 
   m_imageSeparator = createSeparator();
@@ -124,31 +87,41 @@ void CaptureToolBarWidget::setupUi() {
           ? CaptureEngine::instance()->isSessionImgCursorEnabled()
           : false;
 
-  m_btnImgEditor = createCheckableButton("Open in Editor after capture",
-                                         SVG_EDITOR, editorEnabled);
+  ButtonConfig editorCfg;
+  editorCfg.tooltip = "Open in Editor after capture";
+  editorCfg.svgIcon = SVG_EDITOR;
+  editorCfg.checkable = true;
+  editorCfg.checked = editorEnabled;
+  m_btnImgEditor = createButton(editorCfg);
   connect(m_btnImgEditor, &QToolButton::clicked, this,
           &CaptureToolBarWidget::onImgEditorClicked);
   m_layout->addWidget(m_btnImgEditor);
 
-  m_btnImgClipboard = createCheckableButton("Copy to Clipboard after capture",
-                                            SVG_COPY, clipboardEnabled);
+  ButtonConfig clipboardCfg;
+  clipboardCfg.tooltip = "Copy to Clipboard after capture";
+  clipboardCfg.svgIcon = SVG_COPY;
+  clipboardCfg.checkable = true;
+  clipboardCfg.checked = clipboardEnabled;
+  m_btnImgClipboard = createButton(clipboardCfg);
   connect(m_btnImgClipboard, &QToolButton::clicked, this,
           &CaptureToolBarWidget::onImgClipboardClicked);
   m_layout->addWidget(m_btnImgClipboard);
 
-  m_btnImgCursor = createCheckableButton("Capture Mouse Cursor", SVG_MOUSE,
-                                         imgCursorEnabled);
+  ButtonConfig imgCursorCfg;
+  imgCursorCfg.tooltip = "Capture Mouse Cursor";
+  imgCursorCfg.svgIcon = SVG_MOUSE;
+  imgCursorCfg.checkable = true;
+  imgCursorCfg.checked = imgCursorEnabled;
+  m_btnImgCursor = createButton(imgCursorCfg);
   connect(m_btnImgCursor, &QToolButton::clicked, this,
           &CaptureToolBarWidget::onImgCursorClicked);
   m_layout->addWidget(m_btnImgCursor);
 
   // --- Video Capture Buttons & Status ---
-  m_btnRecordPause = new QToolButton(this);
-  m_btnRecordPause->setIcon(createSvgIcon(SVG_RECORD, 20, 20));
-  m_btnRecordPause->setIconSize(QSize(20, 20));
-  m_btnRecordPause->setToolTip("Start Recording");
-  m_btnRecordPause->setFixedSize(34, 34);
-  m_btnRecordPause->setCursor(Qt::PointingHandCursor);
+  ButtonConfig recordCfg;
+  recordCfg.tooltip = "Start Recording";
+  recordCfg.svgIcon = SVG_RECORD;
+  m_btnRecordPause = createButton(recordCfg);
   connect(m_btnRecordPause, &QToolButton::clicked, this,
           &CaptureToolBarWidget::onRecordPauseClicked);
   m_layout->addWidget(m_btnRecordPause);
@@ -165,31 +138,10 @@ void CaptureToolBarWidget::setupUi() {
         CaptureMainWindow::instance()->isSettingEnabled("Record System Audio");
   }
 
-  QWidget* cursorContainer = new QWidget(this);
-  QHBoxLayout* cursorLayout = new QHBoxLayout(cursorContainer);
-  cursorLayout->setContentsMargins(0, 0, 0, 0);
-  cursorLayout->setSpacing(0);
-  m_btnCursor =
-      createCheckableButton("Record Mouse Cursor", SVG_MOUSE, cursorEnabled);
-  m_btnCursor->setProperty("split_left", true);
-  m_btnCursor->setFixedSize(32, 34);
-  QToolButton* cursorArrow = new QToolButton(this);
-  cursorArrow->setProperty("split_right", true);
-  cursorArrow->setProperty("checked_state", cursorEnabled);
-  cursorArrow->setFixedSize(16, 34);
-  cursorArrow->setCursor(Qt::PointingHandCursor);
-  cursorArrow->setIcon(createSvgIcon("<svg xmlns=\"http://www.w3.org/2000/svg\" height=\"24px\" viewBox=\"0 -960 960 960\" width=\"24px\" fill=\"#FFFFFF\"><path d=\"M480-345 240-585l56-56 184 183 184-183 56 56-240 240Z\"/></svg>", 16, 16));
-  cursorArrow->setIconSize(QSize(16, 16));
-  cursorLayout->addWidget(m_btnCursor);
-  cursorLayout->addWidget(cursorArrow);
-
-  m_cursorMenu = new QMenu(cursorContainer);
-  m_cursorMenu->setStyleSheet(
-      "QMenu { background-color: #282e38; color: #f0f0f0; border: 1px solid "
-      "#384252; border-radius: 6px; padding: 4px 0px; font-size: 13px; }"
-      "QMenu::item { padding: 6px 28px 6px 28px; }"
-      "QMenu::item:selected { background-color: #00a8ff; color: #ffffff; }"
-      "QMenu::indicator { width: 14px; height: 14px; left: 8px; }");
+  auto cursorGroup = createSplitButton("Record Mouse Cursor", SVG_MOUSE, cursorEnabled);
+  m_cursorContainer = cursorGroup.container;
+  m_btnCursor = cursorGroup.mainButton;
+  m_cursorMenu = cursorGroup.menu;
   QAction *actHl = m_cursorMenu->addAction("Highlight");
   actHl->setCheckable(true);
   actHl->setChecked(CaptureEngine::instance()->isSessionHighlightEnabled());
@@ -208,62 +160,26 @@ void CaptureToolBarWidget::setupUi() {
   });
   connect(m_cursorMenu, &QMenu::aboutToShow, this,
           &CaptureToolBarWidget::refreshMenuStates);
-  connect(cursorArrow, &QToolButton::clicked, this, [this, cursorArrow]() {
-      QPoint pos = cursorArrow->mapToGlobal(QPoint(0, cursorArrow->height() + 4));
-      m_cursorMenu->exec(pos);
-  });
-  connect(m_btnCursor, &QToolButton::toggled, this, [cursorArrow](bool checked){
-      cursorArrow->setProperty("checked_state", checked);
-      cursorArrow->style()->unpolish(cursorArrow);
-      cursorArrow->style()->polish(cursorArrow);
-  });
   connect(m_btnCursor, &QToolButton::clicked, this,
           &CaptureToolBarWidget::onCursorClicked);
-  m_layout->addWidget(cursorContainer);
+  m_layout->addWidget(m_cursorContainer);
 
-  QWidget* micContainer = new QWidget(this);
-  QHBoxLayout* micLayout = new QHBoxLayout(micContainer);
-  micLayout->setContentsMargins(0, 0, 0, 0);
-  micLayout->setSpacing(0);
-  m_btnMic = createCheckableButton(
-      "Record Microphone", micEnabled ? SVG_MIC : SVG_MIC_OFF, micEnabled);
-  m_btnMic->setProperty("split_left", true);
-  m_btnMic->setFixedSize(32, 34);
-  QToolButton* micArrow = new QToolButton(this);
-  micArrow->setProperty("split_right", true);
-  micArrow->setProperty("checked_state", micEnabled);
-  micArrow->setFixedSize(16, 34);
-  micArrow->setCursor(Qt::PointingHandCursor);
-  micArrow->setIcon(createSvgIcon("<svg xmlns=\"http://www.w3.org/2000/svg\" height=\"24px\" viewBox=\"0 -960 960 960\" width=\"24px\" fill=\"#FFFFFF\"><path d=\"M480-345 240-585l56-56 184 183 184-183 56 56-240 240Z\"/></svg>", 16, 16));
-  micArrow->setIconSize(QSize(16, 16));
-  micLayout->addWidget(m_btnMic);
-  micLayout->addWidget(micArrow);
-
-  m_micMenu = new QMenu(micContainer);
-  m_micMenu->setStyleSheet(
-      "QMenu { background-color: #282e38; color: #f0f0f0; border: 1px solid "
-      "#384252; border-radius: 6px; padding: 4px 0px; font-size: 13px; }"
-      "QMenu::item { padding: 6px 28px 6px 28px; }"
-      "QMenu::item:selected { background-color: #00a8ff; color: #ffffff; }"
-      "QMenu::indicator { width: 14px; height: 14px; left: 8px; }");
+  auto micGroup = createSplitButton("Record Microphone", micEnabled ? SVG_MIC : SVG_MIC_OFF, micEnabled);
+  m_micContainer = micGroup.container;
+  m_btnMic = micGroup.mainButton;
+  m_micMenu = micGroup.menu;
   connect(m_micMenu, &QMenu::aboutToShow, this,
           &CaptureToolBarWidget::onMicMenuAboutToShow);
-  connect(micArrow, &QToolButton::clicked, this, [this, micArrow]() {
-      QPoint pos = micArrow->mapToGlobal(QPoint(0, micArrow->height() + 4));
-      m_micMenu->exec(pos);
-  });
-  connect(m_btnMic, &QToolButton::toggled, this, [micArrow](bool checked){
-      micArrow->setProperty("checked_state", checked);
-      micArrow->style()->unpolish(micArrow);
-      micArrow->style()->polish(micArrow);
-  });
   connect(m_btnMic, &QToolButton::clicked, this,
           &CaptureToolBarWidget::onMicClicked);
-  m_layout->addWidget(micContainer);
+  m_layout->addWidget(m_micContainer);
 
-  m_btnSysAudio = createCheckableButton(
-      "Record System Audio",
-      sysAudioEnabled ? SVG_SYS_AUDIO : SVG_SYS_AUDIO_OFF, sysAudioEnabled);
+  ButtonConfig sysAudioCfg;
+  sysAudioCfg.tooltip = "Record System Audio";
+  sysAudioCfg.svgIcon = sysAudioEnabled ? SVG_SYS_AUDIO : SVG_SYS_AUDIO_OFF;
+  sysAudioCfg.checkable = true;
+  sysAudioCfg.checked = sysAudioEnabled;
+  m_btnSysAudio = createButton(sysAudioCfg);
   connect(m_btnSysAudio, &QToolButton::clicked, this,
           &CaptureToolBarWidget::onSysAudioClicked);
   m_layout->addWidget(m_btnSysAudio);
@@ -275,14 +191,19 @@ void CaptureToolBarWidget::setupUi() {
   m_videoSeparator = createSeparator();
   m_layout->addWidget(m_videoSeparator);
 
-  m_btnVideoStop =
-      createToolButton("Finish Recording (Done)", SVG_DONE, nullptr);
+  ButtonConfig videoStopCfg;
+  videoStopCfg.tooltip = "Finish Recording (Done)";
+  videoStopCfg.svgIcon = SVG_DONE;
+  m_btnVideoStop = createButton(videoStopCfg);
   connect(m_btnVideoStop, &QToolButton::clicked, this,
           &CaptureToolBarWidget::onVideoStopClicked);
   m_layout->addWidget(m_btnVideoStop);
 
-  m_btnVideoCancel =
-      createToolButton("Cancel (Esc)", SVG_CANCEL, SIGNAL(actionCancel()));
+  ButtonConfig videoCancelCfg;
+  videoCancelCfg.tooltip = "Cancel (Esc)";
+  videoCancelCfg.svgIcon = SVG_CANCEL;
+  m_btnVideoCancel = createButton(videoCancelCfg);
+  connect(m_btnVideoCancel, SIGNAL(clicked()), this, SIGNAL(actionCancel()));
   m_layout->addWidget(m_btnVideoCancel);
 
   updateRecordButtonStyle();
@@ -292,21 +213,20 @@ void CaptureToolBarWidget::setupUi() {
 void CaptureToolBarWidget::updateRecordButtonStyle() {
   if (!m_btnRecordPause)
     return;
+  ButtonConfig config;
+  config.tooltip = m_isRecording ? "Stop Recording & Save" : "Start Recording";
+  config.svgIcon = m_isRecording ? SVG_STOP : SVG_RECORD;
   if (m_isRecording) {
-    m_btnRecordPause->setStyleSheet(
-        "QToolButton { background-color: #e53935; border: 1px solid #ff5252; "
-        "border-radius: 6px; }"
-        "QToolButton:hover { background-color: #ff5252; border: 1px solid "
-        "#ff7b7b; }"
-        "QToolButton:pressed { background-color: #b71c1c; }");
+    config.bgNormal = "#e53935";
+    config.borderNormal = "#ff5252";
+    config.bgHover = "#ff5252";
+    config.borderHover = "#ff7b7b";
+    config.bgPressed = "#b71c1c";
   } else {
-    m_btnRecordPause->setStyleSheet(
-        "QToolButton { background: rgba(255, 255, 255, 0.14); border: 1px "
-        "solid rgba(255, 255, 255, 0.28); border-radius: 6px; }"
-        "QToolButton:hover { background-color: #00a8ff; border: 1px solid "
-        "#00a8ff; }"
-        "QToolButton:pressed { background-color: #0088cc; }");
+    config.bgNormal = "rgba(255, 255, 255, 0.14)";
+    config.borderNormal = "rgba(255, 255, 255, 0.28)";
   }
+  setButtonColors(m_btnRecordPause, config);
 }
 
 void CaptureToolBarWidget::setCaptureMode(CaptureMode mode) {
@@ -334,15 +254,15 @@ void CaptureToolBarWidget::setCaptureMode(CaptureMode mode) {
       m_btnRecordPause->setIcon(
           createSvgIcon(m_isRecording ? SVG_STOP : SVG_RECORD, 20, 20));
       m_btnRecordPause->setToolTip(
-          m_isRecording ? "Stop Recording & Save (停止錄影並回寫到檔案)"
-                        : "Start Recording (啟動錄影)");
+          m_isRecording ? "Stop Recording & Save"
+                        : "Start Recording");
       updateRecordButtonStyle();
     }
   }
-  if (m_btnCursor)
-    m_btnCursor->setVisible(isVideo);
-  if (m_btnMic)
-    m_btnMic->setVisible(isVideo);
+  if (m_cursorContainer)
+    m_cursorContainer->setVisible(isVideo);
+  if (m_micContainer)
+    m_micContainer->setVisible(isVideo);
   if (m_btnSysAudio)
     m_btnSysAudio->setVisible(isVideo);
   if (m_lblVideoStatus) {
@@ -382,33 +302,122 @@ void CaptureToolBarWidget::updateTargetDimensions(int width, int height) {
   }
 }
 
-QToolButton *
-CaptureToolBarWidget::createToolButton(const QString &tooltip,
-                                       const QString &svgIconString,
-                                       const char *slotSignal) {
+QToolButton *CaptureToolBarWidget::createButton(const ButtonConfig& config) {
   QToolButton *btn = new QToolButton(this);
-  btn->setIcon(createSvgIcon(svgIconString, 20, 20));
-  btn->setIconSize(QSize(20, 20));
-  btn->setToolTip(tooltip);
-  btn->setFixedSize(34, 34);
-  btn->setCursor(Qt::PointingHandCursor);
-  if (slotSignal) {
-    connect(btn, SIGNAL(clicked()), this, slotSignal);
+  btn->setIcon(createSvgIcon(config.svgIcon, config.iconSize, config.iconSize));
+  btn->setIconSize(QSize(config.iconSize, config.iconSize));
+  if (!config.tooltip.isEmpty()) {
+    btn->setToolTip(config.tooltip);
   }
+  btn->setFixedSize(config.width, config.height);
+  btn->setCheckable(config.checkable);
+  btn->setChecked(config.checked);
+  btn->setCursor(Qt::PointingHandCursor);
+  setButtonColors(btn, config);
   return btn;
 }
 
-QToolButton *CaptureToolBarWidget::createCheckableButton(
+void CaptureToolBarWidget::setButtonColors(QToolButton* btn, const ButtonConfig& config) {
+  QString style = QString(
+      "QToolButton { "
+      "   background-color: %1; "
+      "   border: 1px solid %2; "
+      "   border-radius: 6px; "
+      "   padding: 0px; "
+      "} "
+      "QToolButton:hover { "
+      "   background-color: %3; "
+      "   border: 1px solid %4; "
+      "} "
+      "QToolButton:pressed { "
+      "   background-color: %5; "
+      "} "
+      "QToolButton:checked { "
+      "   background-color: %6; "
+      "   border: 1px solid %7; "
+      "} "
+      "%8"
+  ).arg(config.bgNormal, config.borderNormal, 
+        config.bgHover, config.borderHover, 
+        config.bgPressed, 
+        config.bgChecked, config.borderChecked,
+        config.extraStyle);
+  btn->setStyleSheet(style);
+}
+
+CaptureToolBarWidget::SplitButtonResult CaptureToolBarWidget::createSplitButton(
     const QString &tooltip, const QString &svgIconString, bool checked) {
-  QToolButton *btn = new QToolButton(this);
-  btn->setIcon(createSvgIcon(svgIconString, 20, 20));
-  btn->setIconSize(QSize(20, 20));
-  btn->setToolTip(tooltip);
-  btn->setFixedSize(34, 34);
-  btn->setCheckable(true);
-  btn->setChecked(checked);
-  btn->setCursor(Qt::PointingHandCursor);
-  return btn;
+  QWidget* container = new QWidget(this);
+  QHBoxLayout* layout = new QHBoxLayout(container);
+  layout->setContentsMargins(0, 0, 0, 0);
+  layout->setSpacing(0);
+
+  ButtonConfig mainCfg;
+  mainCfg.tooltip = tooltip;
+  mainCfg.svgIcon = svgIconString;
+  mainCfg.checkable = true;
+  mainCfg.checked = checked;
+  mainCfg.width = 32;
+  mainCfg.extraStyle = 
+        "QToolButton { "
+        "   border-top-right-radius: 0px; "
+        "   border-bottom-right-radius: 0px; "
+        "   border-right: none; "
+        "} "
+        "QToolButton:checked { "
+        "   border-right: none; "
+        "} ";
+  QToolButton* mainBtn = createButton(mainCfg);
+  mainBtn->setProperty("split_left", true);
+
+  ButtonConfig arrowCfg;
+  arrowCfg.svgIcon = SVG_DROP_DOWN;
+  arrowCfg.iconSize = 16;
+  arrowCfg.width = 16;
+  arrowCfg.bgHover = "rgba(255, 255, 255, 0.16)";
+  arrowCfg.borderHover = "rgba(255, 255, 255, 0.15)";
+  arrowCfg.extraStyle = 
+        "QToolButton { "
+        "   border-top-left-radius: 0px; "
+        "   border-bottom-left-radius: 0px; "
+        "   border-left: 1px solid rgba(255, 255, 255, 0.15); "
+        "} "
+        "QToolButton[checked_state=\"true\"] { "
+        "   background-color: rgba(0, 168, 255, 0.4); "
+        "   border: 1px solid #00a8ff; "
+        "   border-left: 1px solid #00a8ff; "
+        "} "
+        "QToolButton[checked_state=\"true\"]:hover { "
+        "   background-color: rgba(0, 168, 255, 0.5); "
+        "   border: 1px solid #00a8ff; "
+        "   border-left: 1px solid #00a8ff; "
+        "} ";
+  QToolButton* arrowBtn = createButton(arrowCfg);
+  arrowBtn->setProperty("split_right", true);
+  arrowBtn->setProperty("checked_state", checked);
+
+  layout->addWidget(mainBtn);
+  layout->addWidget(arrowBtn);
+
+  QMenu* menu = new QMenu(container);
+  menu->setStyleSheet(
+      "QMenu { background-color: #282e38; color: #f0f0f0; border: 1px solid "
+      "#384252; border-radius: 6px; padding: 4px 0px; font-size: 13px; }"
+      "QMenu::item { padding: 6px 28px 6px 28px; }"
+      "QMenu::item:selected { background-color: #00a8ff; color: #ffffff; }"
+      "QMenu::indicator { width: 14px; height: 14px; left: 8px; }");
+
+  connect(arrowBtn, &QToolButton::clicked, this, [menu, arrowBtn]() {
+    QPoint pos = arrowBtn->mapToGlobal(QPoint(0, arrowBtn->height() + 4));
+    menu->exec(pos);
+  });
+  connect(mainBtn, &QToolButton::toggled, this, [arrowBtn](bool c) {
+    arrowBtn->setProperty("checked_state", c);
+    arrowBtn->style()->unpolish(arrowBtn);
+    arrowBtn->style()->polish(arrowBtn);
+  });
+
+  return {container, mainBtn, menu};
 }
 
 QFrame *CaptureToolBarWidget::createSeparator() {
@@ -422,7 +431,7 @@ QFrame *CaptureToolBarWidget::createSeparator() {
 
 void CaptureToolBarWidget::onRecordPauseClicked() {
   if (!m_isRecording) {
-    // 啟動: 開始錄影
+    // Start Recording
     m_isRecording = true;
     m_elapsedSeconds = 0;
     m_redDotVisible = true;
@@ -430,8 +439,7 @@ void CaptureToolBarWidget::onRecordPauseClicked() {
       m_lblVideoStatus->setText(QString("🔴 00:00"));
     }
     m_btnRecordPause->setIcon(createSvgIcon(SVG_STOP, 20, 20));
-    m_btnRecordPause->setToolTip(
-        "Stop Recording & Save (停止錄影並回寫到檔案)");
+    m_btnRecordPause->setToolTip("Stop Recording & Save");
     updateRecordButtonStyle();
     if (!m_recordTimer) {
       m_recordTimer = new QTimer(this);
@@ -441,12 +449,12 @@ void CaptureToolBarWidget::onRecordPauseClicked() {
     m_recordTimer->start(500);
     emit actionVideoRecordStateChanged(true);
   } else {
-    // 停止: 關閉錄影(檔案) 回寫到檔案
+    // Stop Recording & Save
     if (m_recordTimer)
       m_recordTimer->stop();
     m_isRecording = false;
     m_btnRecordPause->setIcon(createSvgIcon(SVG_RECORD, 20, 20));
-    m_btnRecordPause->setToolTip("Start Recording (啟動錄影)");
+    m_btnRecordPause->setToolTip("Start Recording");
     updateRecordButtonStyle();
     if (m_lblVideoStatus) {
       m_lblVideoStatus->setText("Saving...");

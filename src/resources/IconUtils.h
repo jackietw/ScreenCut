@@ -57,6 +57,7 @@ extern const QString SVG_ELLIPSE;
 extern const QString SVG_MOSAIC;
 extern const QString SVG_HIGHLIGHT;
 extern const QString SVG_COLOR;
+extern const QString SVG_DROP_DOWN;
 
 // Helper function to render SVG string to QIcon
 QIcon createSvgIcon(const QString& svgString, int width = 24, int height = 24);

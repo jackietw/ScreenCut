@@ -65,8 +65,35 @@ private slots:
 
 private:
     void setupUi();
-    QToolButton* createToolButton(const QString& tooltip, const QString& svgIconString, const char* slotSignal);
-    QToolButton* createCheckableButton(const QString& tooltip, const QString& svgIconString, bool checked);
+    struct ButtonConfig {
+        QString tooltip;
+        QString svgIcon;
+        bool checkable = false;
+        bool checked = false;
+        int iconSize = 20;
+        int width = 34;
+        int height = 34;
+
+        QString bgNormal = "rgba(255, 255, 255, 0.08)";
+        QString borderNormal = "rgba(255, 255, 255, 0.12)";
+        QString bgHover = "#00a8ff";
+        QString borderHover = "#00a8ff";
+        QString bgPressed = "#0088cc";
+        QString bgChecked = "rgba(0, 168, 255, 0.4)";
+        QString borderChecked = "#00a8ff";
+
+        QString extraStyle = "";
+    };
+
+    QToolButton* createButton(const ButtonConfig& config);
+    void setButtonColors(QToolButton* btn, const ButtonConfig& config);
+
+    struct SplitButtonResult {
+        QWidget* container;
+        QToolButton* mainButton;
+        QMenu* menu;
+    };
+    SplitButtonResult createSplitButton(const QString& tooltip, const QString& svgIconString, bool checked);
     QFrame* createSeparator();
     void updateRecordButtonStyle();
 
@@ -83,7 +110,9 @@ private:
 
     // Video capture buttons & indicators
     QToolButton* m_btnRecordPause = nullptr;
+    QWidget* m_cursorContainer = nullptr;
     QToolButton* m_btnCursor = nullptr;
+    QWidget* m_micContainer = nullptr;
     QToolButton* m_btnMic = nullptr;
     QToolButton* m_btnSysAudio = nullptr;
     QMenu* m_cursorMenu = nullptr;
