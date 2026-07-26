@@ -93,6 +93,14 @@ set(EDITOR_SOURCES
     src/editor/editor_models.cpp
     src/editor/editor_window.h
     src/editor/editor_window.cpp
+    src/widgets/editor_toolbar.h
+    src/widgets/editor_toolbar.cpp
+    src/widgets/editor_props.h
+    src/widgets/editor_props.cpp
+    src/widgets/editor_thumbs.h
+    src/widgets/editor_thumbs.cpp
+    src/widgets/editor_canvas.h
+    src/widgets/editor_canvas.cpp
     ${SHARED_SOURCES}
 )
 

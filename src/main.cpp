@@ -27,6 +27,7 @@
 #include "core/capture_engine.h"
 #include "core/common_project.h"
 #include "capture/capture_window.h"
+#include "capture/capture_preferences.h"
 #include "resources/IconUtils.h"
 #include "widgets/common_notification.h"
 #include <QProcess>
@@ -177,12 +178,14 @@ int main(int argc, char *argv[]) {
             }
         }
         
+        // Disable all capture and navigation actions while settings windows are open
         regionAction->setEnabled(!isSettingsOpen);
         windowAction->setEnabled(!isSettingsOpen);
         scrollAction->setEnabled(!isSettingsOpen);
         fullScreenAction->setEnabled(!isSettingsOpen);
         openMainAction->setEnabled(!isSettingsOpen);
         prefAction->setEnabled(!isSettingsOpen);
+        aboutAction->setEnabled(!isSettingsOpen);
     });
 
     trayIcon.show();
@@ -212,10 +215,10 @@ int main(int argc, char *argv[]) {
         CaptureEngine::instance()->startFullScreenCapture();
     });
     QObject::connect(prefAction, &QAction::triggered, []() {
-        CaptureMainWindow::instance()->show();
-        CaptureMainWindow::instance()->activateWindow();
-        CaptureMainWindow::instance()->raise();
-        CaptureMainWindow::instance()->showPreferencesOverlay();
+        // PreferencesDialog is now a parentless top-level window
+        CapturePreferencesDialog::instance()->showNormal();
+        CapturePreferencesDialog::instance()->raise();
+        CapturePreferencesDialog::instance()->activateWindow();
     });
     QObject::connect(aboutAction, &QAction::triggered, []() {
         CaptureMainWindow::instance()->show();

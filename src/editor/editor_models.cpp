@@ -35,29 +35,45 @@ void ArrowAnnotation::draw(QPainter& painter, const QPixmap* /*background*/) {
     painter.drawLine(startPoint, endPoint);
 
     // Calculate arrowhead geometry
-    double angle = std::atan2(endPoint.y() - startPoint.y(), endPoint.x() - startPoint.x());
-    double arrowLength = qMax(12.0, lineWidth * 3.5);
-    double arrowAngle = qDegreesToRadians(25.0);
+    if (arrowType != "Plain Line") {
+        double angle = std::atan2(endPoint.y() - startPoint.y(), endPoint.x() - startPoint.x());
+        double arrowLength = qMax(12.0, lineWidth * 3.5);
+        double arrowAngle = qDegreesToRadians(25.0);
 
-    QPointF p1 = QPointF(endPoint.x() - arrowLength * std::cos(angle - arrowAngle),
-                         endPoint.y() - arrowLength * std::sin(angle - arrowAngle));
-    QPointF p2 = QPointF(endPoint.x() - arrowLength * std::cos(angle + arrowAngle),
-                         endPoint.y() - arrowLength * std::sin(angle + arrowAngle));
+        QPointF p1 = QPointF(endPoint.x() - arrowLength * std::cos(angle - arrowAngle),
+                             endPoint.y() - arrowLength * std::sin(angle - arrowAngle));
+        QPointF p2 = QPointF(endPoint.x() - arrowLength * std::cos(angle + arrowAngle),
+                             endPoint.y() - arrowLength * std::sin(angle + arrowAngle));
 
-    QPolygonF arrowhead;
-    arrowhead << endPoint << p1 << p2;
-    painter.drawPolygon(arrowhead);
+        QPolygonF arrowhead;
+        arrowhead << endPoint << p1 << p2;
+        painter.drawPolygon(arrowhead);
+
+        if (arrowType == "Double Arrow") {
+            QPointF sp1 = QPointF(startPoint.x() + arrowLength * std::cos(angle - arrowAngle),
+                                  startPoint.y() + arrowLength * std::sin(angle - arrowAngle));
+            QPointF sp2 = QPointF(startPoint.x() + arrowLength * std::cos(angle + arrowAngle),
+                                  startPoint.y() + arrowLength * std::sin(angle + arrowAngle));
+            QPolygonF arrowhead2;
+            arrowhead2 << startPoint << sp1 << sp2;
+            painter.drawPolygon(arrowhead2);
+        }
+    }
 
     if (isSelected) {
         painter.setPen(QPen(Qt::white, 1, Qt::DashLine));
         painter.setBrush(Qt::NoBrush);
         painter.drawRect(QRect(startPoint, endPoint).normalized().adjusted(-4, -4, 4, 4));
+        
+        painter.setPen(QPen(QColor(0, 168, 255), 1));
+        painter.setBrush(Qt::white);
+        painter.drawRect(startPoint.x() - 4, startPoint.y() - 4, 8, 8);
+        painter.drawRect(endPoint.x() - 4, endPoint.y() - 4, 8, 8);
     }
     painter.restore();
 }
 
 bool ArrowAnnotation::contains(const QPoint& pos) const {
-    // Distance from point to line segment
     QRect bounds = QRect(startPoint, endPoint).normalized().adjusted(-8, -8, 8, 8);
     return bounds.contains(pos);
 }
@@ -67,10 +83,24 @@ void ArrowAnnotation::moveBy(const QPoint& delta) {
     endPoint += delta;
 }
 
+int ArrowAnnotation::hitTestHandle(const QPoint& pos) const {
+    if (isSelected) {
+        if (QRect(startPoint.x() - 6, startPoint.y() - 6, 12, 12).contains(pos)) return 1;
+        if (QRect(endPoint.x() - 6, endPoint.y() - 6, 12, 12).contains(pos)) return 2;
+    }
+    return -1;
+}
+
+void ArrowAnnotation::moveHandle(int handleId, const QPoint& newPos) {
+    if (handleId == 1) startPoint = newPos;
+    else if (handleId == 2) endPoint = newPos;
+}
+
 std::shared_ptr<AnnotationItem> ArrowAnnotation::clone() const {
     auto copy = std::make_shared<ArrowAnnotation>(startPoint, endPoint);
     copy->color = color;
     copy->lineWidth = lineWidth;
+    copy->arrowType = arrowType;
     return copy;
 }
 
@@ -84,7 +114,7 @@ void ShapeAnnotation::draw(QPainter& painter, const QPixmap* /*background*/) {
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing);
 
-    QPen pen(color, lineWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    QPen pen(color, lineWidth, (lineStyle == "Dashed") ? Qt::DashLine : Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
     painter.setPen(pen);
 
     if (isFilled) {
@@ -95,9 +125,11 @@ void ShapeAnnotation::draw(QPainter& painter, const QPixmap* /*background*/) {
         painter.setBrush(Qt::NoBrush);
     }
 
-    if (shapeType == ToolType::Rectangle) {
-        painter.drawRoundedRect(rect, 4, 4);
-    } else if (shapeType == ToolType::Ellipse) {
+    if (shapeStyle == "Rectangle") {
+        painter.drawRect(rect);
+    } else if (shapeStyle == "Rounded Rectangle") {
+        painter.drawRoundedRect(rect, 8, 8);
+    } else if (shapeStyle == "Ellipse") {
         painter.drawEllipse(rect);
     }
 
@@ -105,6 +137,14 @@ void ShapeAnnotation::draw(QPainter& painter, const QPixmap* /*background*/) {
         painter.setPen(QPen(Qt::white, 1, Qt::DashLine));
         painter.setBrush(Qt::NoBrush);
         painter.drawRect(rect.adjusted(-4, -4, 4, 4));
+        
+        painter.setPen(QPen(QColor(0, 168, 255), 1));
+        painter.setBrush(Qt::white);
+        QRect r = rect.normalized();
+        painter.drawRect(r.left() - 4, r.top() - 4, 8, 8);
+        painter.drawRect(r.right() - 4, r.top() - 4, 8, 8);
+        painter.drawRect(r.left() - 4, r.bottom() - 4, 8, 8);
+        painter.drawRect(r.right() - 4, r.bottom() - 4, 8, 8);
     }
     painter.restore();
 }
@@ -117,11 +157,33 @@ void ShapeAnnotation::moveBy(const QPoint& delta) {
     rect.translate(delta);
 }
 
+int ShapeAnnotation::hitTestHandle(const QPoint& pos) const {
+    if (isSelected) {
+        QRect r = rect.normalized();
+        if (QRect(r.left() - 6, r.top() - 6, 12, 12).contains(pos)) return 1;
+        if (QRect(r.right() - 6, r.top() - 6, 12, 12).contains(pos)) return 2;
+        if (QRect(r.right() - 6, r.bottom() - 6, 12, 12).contains(pos)) return 3;
+        if (QRect(r.left() - 6, r.bottom() - 6, 12, 12).contains(pos)) return 4;
+    }
+    return -1;
+}
+
+void ShapeAnnotation::moveHandle(int handleId, const QPoint& newPos) {
+    QRect r = rect.normalized();
+    if (handleId == 1) r.setTopLeft(newPos);
+    else if (handleId == 2) r.setTopRight(newPos);
+    else if (handleId == 3) r.setBottomRight(newPos);
+    else if (handleId == 4) r.setBottomLeft(newPos);
+    rect = r.normalized();
+}
+
 std::shared_ptr<AnnotationItem> ShapeAnnotation::clone() const {
     auto copy = std::make_shared<ShapeAnnotation>(shapeType, rect);
     copy->color = color;
     copy->lineWidth = lineWidth;
     copy->isFilled = isFilled;
+    copy->shapeStyle = shapeStyle;
+    copy->lineStyle = lineStyle;
     return copy;
 }
 
@@ -145,7 +207,11 @@ void FreehandAnnotation::draw(QPainter& painter, const QPixmap* /*background*/) 
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing);
 
-    QPen pen(color, lineWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    QColor c = color;
+    if (penStyle == "Highlighter") {
+        c.setAlpha(120);
+    }
+    QPen pen(c, lineWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
     painter.setPen(pen);
     painter.setBrush(Qt::NoBrush);
 
@@ -175,6 +241,7 @@ std::shared_ptr<AnnotationItem> FreehandAnnotation::clone() const {
     copy->lineWidth = lineWidth;
     copy->points = points;
     copy->path = path;
+    copy->penStyle = penStyle;
     return copy;
 }
 
@@ -192,6 +259,7 @@ void TextAnnotation::draw(QPainter& painter, const QPixmap* /*background*/) {
     painter.setRenderHint(QPainter::TextAntialiasing);
 
     QFont font = painter.font();
+    font.setFamily(fontFamily);
     font.setPointSize(fontSize);
     font.setBold(true);
     painter.setFont(font);
@@ -235,6 +303,7 @@ std::shared_ptr<AnnotationItem> TextAnnotation::clone() const {
     auto copy = std::make_shared<TextAnnotation>(position, text);
     copy->color = color;
     copy->fontSize = fontSize;
+    copy->fontFamily = fontFamily;
     copy->hasBackgroundBox = hasBackgroundBox;
     return copy;
 }
@@ -316,7 +385,7 @@ void ShaderAnnotation::draw(QPainter& painter, const QPixmap* background) {
 
     if (shaderType == ToolType::Mosaic) {
         // Pixelation shader effect
-        int step = qMax(4, blockSize);
+        int step = qMax(4, intensity);
         for (int y = 0; y < sourceImg.height(); y += step) {
             for (int x = 0; x < sourceImg.width(); x += step) {
                 int rx = qMin(step, sourceImg.width() - x);
@@ -334,7 +403,8 @@ void ShaderAnnotation::draw(QPainter& painter, const QPixmap* background) {
         }
     } else if (shaderType == ToolType::Blur) {
         // Fast box blur / Gaussian blur simulation
-        QImage blurred = sourceImg.scaled(qMax(1, sourceImg.width() / 10), qMax(1, sourceImg.height() / 10),
+        int blurFactor = qMax(1, intensity);
+        QImage blurred = sourceImg.scaled(qMax(1, sourceImg.width() / blurFactor), qMax(1, sourceImg.height() / blurFactor),
                                           Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
         sourceImg = blurred.scaled(sourceImg.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
     }
@@ -360,6 +430,7 @@ void ShaderAnnotation::moveBy(const QPoint& delta) {
 std::shared_ptr<AnnotationItem> ShaderAnnotation::clone() const {
     auto copy = std::make_shared<ShaderAnnotation>(shaderType, rect);
     copy->blockSize = blockSize;
+    copy->intensity = intensity;
     return copy;
 }
 

@@ -23,13 +23,11 @@ namespace ScreenCut {
 
 CapturePreferencesDialog *CapturePreferencesDialog::s_instance = nullptr;
 
-CapturePreferencesDialog *CapturePreferencesDialog::instance(QWidget *parent) {
+CapturePreferencesDialog *CapturePreferencesDialog::instance(QWidget * /*parent*/) {
   if (!s_instance) {
-    s_instance = new CapturePreferencesDialog(parent);
-  } else if (parent && s_instance->parent() != parent) {
-    s_instance->setParent(
-        parent, Qt::Dialog | Qt::WindowTitleHint | Qt::WindowCloseButtonHint |
-                    Qt::WindowSystemMenuHint | Qt::WindowStaysOnTopHint);
+    // Always create with no parent so this window is fully independent
+    // and never blocks the app from quitting/restarting.
+    s_instance = new CapturePreferencesDialog(nullptr);
   }
   return s_instance;
 }
@@ -38,8 +36,7 @@ CapturePreferencesDialog::CapturePreferencesDialog(QWidget *parent)
     : QDialog(parent,
               Qt::Dialog | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint) {
   setWindowTitle("Preferences & Settings");
-  setModal(true);
-  setWindowModality(Qt::WindowModal);
+  // Non-modal so the app can still quit/restart while this window is open
   resize(620, 460);
   setMinimumSize(540, 400);
 
@@ -303,9 +300,9 @@ QWidget *CapturePreferencesDialog::createGeneralPage() {
         }
     )");
   connect(btnPermissions, &QPushButton::clicked, this, []() {
-    PermissionsWindow::instance(CaptureMainWindow::instance())->showNormal();
-    PermissionsWindow::instance(CaptureMainWindow::instance())->raise();
-    PermissionsWindow::instance(CaptureMainWindow::instance())->activateWindow();
+    PermissionsWindow::instance()->showNormal();
+    PermissionsWindow::instance()->raise();
+    PermissionsWindow::instance()->activateWindow();
   });
   layout->addWidget(btnPermissions);
 

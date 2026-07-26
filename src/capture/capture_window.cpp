@@ -471,9 +471,7 @@ void CaptureMainWindow::onAboutClicked() {
 }
 
 void CaptureMainWindow::showPreferencesOverlay() {
-    CapturePreferencesDialog* dlg = CapturePreferencesDialog::instance(this);
-    dlg->setModal(true);
-    dlg->setWindowModality(Qt::WindowModal);
+    CapturePreferencesDialog* dlg = CapturePreferencesDialog::instance();
     dlg->showNormal();
     dlg->raise();
     dlg->activateWindow();

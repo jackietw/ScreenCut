@@ -40,6 +40,8 @@ public:
     virtual void draw(QPainter& painter, const QPixmap* background = nullptr) = 0;
     virtual bool contains(const QPoint& pos) const = 0;
     virtual void moveBy(const QPoint& delta) = 0;
+    virtual int hitTestHandle(const QPoint& pos) const { return -1; }
+    virtual void moveHandle(int handleId, const QPoint& newPos) {}
     virtual std::shared_ptr<AnnotationItem> clone() const = 0;
     virtual QJsonObject toJson() const = 0;
     static std::shared_ptr<AnnotationItem> fromJson(const QJsonObject& json);
@@ -57,11 +59,14 @@ public:
     void draw(QPainter& painter, const QPixmap* background = nullptr) override;
     bool contains(const QPoint& pos) const override;
     void moveBy(const QPoint& delta) override;
+    int hitTestHandle(const QPoint& pos) const override;
+    void moveHandle(int handleId, const QPoint& newPos) override;
     std::shared_ptr<AnnotationItem> clone() const override;
     QJsonObject toJson() const override;
 
     QPoint startPoint;
     QPoint endPoint;
+    QString arrowType = "Single Arrow";
 };
 
 class ShapeAnnotation : public AnnotationItem {
@@ -72,12 +77,16 @@ public:
     void draw(QPainter& painter, const QPixmap* background = nullptr) override;
     bool contains(const QPoint& pos) const override;
     void moveBy(const QPoint& delta) override;
+    int hitTestHandle(const QPoint& pos) const override;
+    void moveHandle(int handleId, const QPoint& newPos) override;
     std::shared_ptr<AnnotationItem> clone() const override;
     QJsonObject toJson() const override;
 
     ToolType shapeType; // Rectangle or Ellipse
     QRect rect;
     bool isFilled = false;
+    QString shapeStyle = "Rectangle"; // Rectangle, Rounded Rectangle, Ellipse
+    QString lineStyle = "Solid";
 };
 
 class FreehandAnnotation : public AnnotationItem {
@@ -95,6 +104,7 @@ public:
 
     std::vector<QPoint> points;
     QPainterPath path;
+    QString penStyle = "Solid Pen";
 };
 
 class TextAnnotation : public AnnotationItem {
@@ -110,7 +120,8 @@ public:
 
     QPoint position;
     QString text;
-    int fontSize = 16;
+    int fontSize = 24;
+    QString fontFamily = "Arial";
     bool hasBackgroundBox = true;
 };
 
@@ -144,6 +155,7 @@ public:
     ToolType shaderType; // Mosaic or Blur
     QRect rect;
     int blockSize = 12; // For Mosaic
+    int intensity = 15;
 };
 
 class HighlightAnnotation : public AnnotationItem {

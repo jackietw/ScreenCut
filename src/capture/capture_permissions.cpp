@@ -8,6 +8,8 @@
 #include <QEvent>
 #include <QMouseEvent>
 #include <QHBoxLayout>
+#include <QApplication>
+#include <QProcess>
 
 namespace ScreenCut {
 
@@ -86,12 +88,11 @@ void PermissionRow::refresh() {
 
 PermissionsWindow *PermissionsWindow::s_instance = nullptr;
 
-PermissionsWindow *PermissionsWindow::instance(QWidget *parent) {
+PermissionsWindow *PermissionsWindow::instance(QWidget * /*parent*/) {
   if (!s_instance) {
-    s_instance = new PermissionsWindow(parent);
-  } else if (parent && s_instance->parent() != parent) {
-    s_instance->setParent(
-        parent, Qt::Dialog | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+    // Always create with no parent so this window is fully independent
+    // and never blocked by PreferencesDialog's Qt::WindowModal modality.
+    s_instance = new PermissionsWindow(nullptr);
   }
   return s_instance;
 }
@@ -99,8 +100,8 @@ PermissionsWindow *PermissionsWindow::instance(QWidget *parent) {
 PermissionsWindow::PermissionsWindow(QWidget *parent)
     : QDialog(parent, Qt::Dialog | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint) {
   setWindowTitle("System Permissions");
-  setModal(true);
-  setWindowModality(Qt::WindowModal);
+  // Non-modal so the app can still quit/restart while this window is open
+  // (macOS requires app restart after granting Screen Capture permission)
   resize(500, 440);
 
   setObjectName("PermissionsWindow");
@@ -213,6 +214,27 @@ void PermissionsWindow::setupUi() {
   bottomLayout->addWidget(btnDone);
 
   m_mainLayout->addWidget(bottomContainer);
+
+  // Restart Required Banner (hidden by default)
+  m_restartBanner = new QWidget(centralWidget);
+  m_restartBanner->setObjectName("RestartBanner");
+  m_restartBanner->hide();
+  QHBoxLayout *bannerLayout = new QHBoxLayout(m_restartBanner);
+  bannerLayout->setContentsMargins(16, 10, 16, 10);
+  QLabel *bannerLabel = new QLabel(
+      "⚠️ Screen Capture permission granted. Restart required to take effect.",
+      m_restartBanner);
+  bannerLabel->setStyleSheet(
+      "color: #ffd60a; font-size: 12px; font-weight: bold;");
+  bannerLabel->setWordWrap(true);
+  QPushButton *btnRestart = new QPushButton("Restart Now", m_restartBanner);
+  btnRestart->setObjectName("BtnRestart");
+  btnRestart->setCursor(Qt::PointingHandCursor);
+  connect(btnRestart, &QPushButton::clicked, this,
+          &PermissionsWindow::restartApplication);
+  bannerLayout->addWidget(bannerLabel, 1);
+  bannerLayout->addWidget(btnRestart, 0);
+  m_mainLayout->addWidget(m_restartBanner);
 }
 
 void PermissionsWindow::setupStyleSheet() {
@@ -254,6 +276,22 @@ void PermissionsWindow::setupStyleSheet() {
             background-color: #3e4454;
             border-color: #00a8ff;
         }
+        QPushButton#BtnRestart {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #ff9500, stop:1 #ff6b00);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 30%);
+            border-radius: 4px;
+            padding: 6px 14px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        QPushButton#BtnRestart:hover {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #ffaa22, stop:1 #ff7a1a);
+        }
+        QWidget#RestartBanner {
+            background-color: rgba(255, 149, 0, 15%);
+            border-top: 1px solid rgba(255, 149, 0, 40%);
+        }
     )");
 }
 
@@ -263,6 +301,46 @@ void PermissionsWindow::changeEvent(QEvent *event) {
 
 void PermissionsWindow::showEvent(QShowEvent *event) {
   QDialog::showEvent(event);
+  // Record initial Screen Capture permission state
+  m_hadScreenCapture = Platform::checkScreenCapturePermission();
+  // Start polling timer to auto-refresh permission status
+  if (!m_pollTimer) {
+    m_pollTimer = new QTimer(this);
+    connect(m_pollTimer, &QTimer::timeout, this, [this]() {
+      for (PermissionRow *row : m_rows) {
+        row->refresh();
+      }
+      // Detect newly granted Screen Capture permission
+      bool hasNow = Platform::checkScreenCapturePermission();
+      if (hasNow && !m_hadScreenCapture && m_restartBanner) {
+        m_restartBanner->show();
+      }
+    });
+  }
+  m_pollTimer->start(2000);
+}
+
+void PermissionsWindow::closeEvent(QCloseEvent *event) {
+  if (m_pollTimer) {
+    m_pollTimer->stop();
+  }
+  QDialog::closeEvent(event);
+}
+
+void PermissionsWindow::hideEvent(QHideEvent *event) {
+  if (m_pollTimer) {
+    m_pollTimer->stop();
+  }
+  QDialog::hideEvent(event);
+}
+
+void PermissionsWindow::restartApplication() {
+  qDebug() << "[PermissionsWindow] User clicked Restart Now. Relaunching app...";
+  QString appPath = QApplication::applicationFilePath();
+  QStringList args = QApplication::arguments();
+  args.removeFirst(); // remove the executable path from args
+  QProcess::startDetached(appPath, args);
+  ::exit(0);
 }
 
 } // namespace ScreenCut

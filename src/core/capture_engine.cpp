@@ -557,12 +557,19 @@ QPixmap CaptureEngine::captureRect(const QRect &rect) {
     m_fullDesktopSnapshot = captureAllScreens();
   }
 
-  // Ensure rect is within bounds
-  QRect boundedRect = rect.intersected(m_fullDesktopSnapshot.rect());
+  // rect is in logical coordinates (from the overlay widget).
+  // QPixmap::copy() operates in physical pixel space, so scale up by dpr.
+  qreal dpr = m_fullDesktopSnapshot.devicePixelRatio();
+  QRect physRect = (dpr > 1.0)
+      ? QRect(qRound(rect.x() * dpr), qRound(rect.y() * dpr),
+              qRound(rect.width() * dpr), qRound(rect.height() * dpr))
+      : rect;
+  QRect boundedRect = physRect.intersected(m_fullDesktopSnapshot.rect());
   if (boundedRect.isEmpty()) {
     return m_fullDesktopSnapshot;
   }
   QPixmap cropped = m_fullDesktopSnapshot.copy(boundedRect);
+  cropped.setDevicePixelRatio(dpr); // preserve HiDPI metadata on the cropped result
 
   if (isSessionImgCursorEnabled()) {
     QPoint cursorPos = QCursor::pos();
@@ -619,8 +626,12 @@ QPixmap CaptureEngine::captureAllScreens() {
   QPainter painter(&combined);
   for (QScreen *screen : screens) {
     QPixmap screenPixmap = screen->grabWindow(0);
-    QPoint offset = screen->geometry().topLeft() - virtualGeometry.topLeft();
-    painter.drawPixmap(offset, screenPixmap);
+    // geometry() returns logical coordinates; convert to physical pixels
+    // so the drawPixmap offset aligns with the physical-pixel combined pixmap.
+    QPoint logicalOffset = screen->geometry().topLeft() - virtualGeometry.topLeft();
+    QPoint physOffset(qRound(logicalOffset.x() * maxDpr),
+                      qRound(logicalOffset.y() * maxDpr));
+    painter.drawPixmap(physOffset, screenPixmap);
   }
   painter.end();
 
@@ -888,7 +899,14 @@ RegionSelectWidget::RegionSelectWidget(const QPixmap &desktopSnapshot,
   setMouseTracking(true);
 
   if (!m_desktopSnapshot.isNull()) {
-    setGeometry(m_desktopSnapshot.rect());
+    // desktopSnapshot is captured at physical pixel resolution.
+    // setGeometry() works in logical coordinates, so divide by dpr.
+    qreal dpr = m_desktopSnapshot.devicePixelRatio();
+    QSize logicalSize = (dpr > 1.0)
+        ? QSize(qRound(m_desktopSnapshot.width() / dpr),
+                qRound(m_desktopSnapshot.height() / dpr))
+        : m_desktopSnapshot.size();
+    setGeometry(QRect(QPoint(0, 0), logicalSize));
     m_desktopSnapshotImage = m_desktopSnapshot.toImage();
   }
   updateHoveredWindow(mapFromGlobal(QCursor::pos()));

@@ -11,6 +11,8 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QTimer>
+#include <QCloseEvent>
+#include <QHideEvent>
 #include <functional>
 
 namespace ScreenCut {
@@ -36,6 +38,8 @@ public:
 protected:
     void changeEvent(QEvent* event) override;
     void showEvent(QShowEvent* event) override;
+    void closeEvent(QCloseEvent* event) override;
+    void hideEvent(QHideEvent* event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
 
@@ -43,11 +47,15 @@ private:
     explicit PermissionsWindow(QWidget* parent = nullptr);
     void setupUi();
     void setupStyleSheet();
+    void restartApplication();
 
     static PermissionsWindow* s_instance;
     QVBoxLayout* m_mainLayout = nullptr;
     QList<PermissionRow*> m_rows;
     QPoint m_dragPos;
+    QTimer* m_pollTimer = nullptr;
+    QWidget* m_restartBanner = nullptr;
+    bool m_hadScreenCapture = false;
 };
 
 } // namespace ScreenCut

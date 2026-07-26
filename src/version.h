@@ -8,14 +8,15 @@
 
 #define SCREENCUT_VERSION_MAJOR 1
 #define SCREENCUT_VERSION_MINOR 0
-#define SCREENCUT_VERSION_PATCH 1
+#define SCREENCUT_VERSION_PATCH 3
 
 #define _SC_STRINGIFY_IMPL(x) #x
 #define _SC_STRINGIFY(x) _SC_STRINGIFY_IMPL(x)
 
-#define SCREENCUT_VERSION_STR _SC_STRINGIFY(SCREENCUT_VERSION_MAJOR) "." \
-                              _SC_STRINGIFY(SCREENCUT_VERSION_MINOR) "." \
-                              _SC_STRINGIFY(SCREENCUT_VERSION_PATCH)
+#define SCREENCUT_VERSION_STR                                                  \
+  _SC_STRINGIFY(SCREENCUT_VERSION_MAJOR)                                       \
+  "." _SC_STRINGIFY(SCREENCUT_VERSION_MINOR) "." _SC_STRINGIFY(                \
+      SCREENCUT_VERSION_PATCH)
 #define SCREENCUT_APP_NAME "ScreenCut"
 #define SCREENCUT_ORG_NAME "Jackie"
 #define SCREENCUT_ORG_DOMAIN "https://github.com/jackietw/ScreenCut"
