@@ -35,6 +35,21 @@ public:
     void setLineStyle(const QString& style);
     void setFontFamily(const QString& family);
     void setFontSize(int size);
+    
+    // New text property setters
+    void setTextIsBold(bool bold);
+    void setTextIsItalic(bool italic);
+    void setTextIsUnderline(bool underline);
+    void setTextIsStrikeOut(bool strike);
+    void setTextHAlign(TextAnnotation::TextAlign align);
+    void setTextVAlign(TextAnnotation::VerticalAlign align);
+    void setTextOpacity(int opacity);
+    void setTextLineSpacing(int spacing);
+    void setTextOutlineColor(const QColor& color);
+    void setTextHasShadow(bool hasShadow);
+    void setTextShadowDirection(ShadowDirection direction);
+    void setTextOutlineWidth(int width);
+
     void setBlurType(ToolType type);
     void setBlurIntensity(int intensity);
     void setPenStyle(const QString& style);
@@ -88,6 +103,20 @@ private:
     QString m_lineStyle = "Solid";
     QString m_fontFamily = "Arial";
     int m_fontSize = 24;
+    
+    bool m_textIsBold = false;
+    bool m_textIsItalic = false;
+    bool m_textIsUnderline = false;
+    bool m_textIsStrikeOut = false;
+    TextAnnotation::TextAlign m_textHAlign = TextAnnotation::TextAlign::Left;
+    TextAnnotation::VerticalAlign m_textVAlign = TextAnnotation::VerticalAlign::Top;
+    int m_textOpacity = 100;
+    int m_textLineSpacing = 0;
+    QColor m_textOutlineColor = Qt::transparent;
+    bool m_textHasShadow = false;
+    ShadowDirection m_textShadowDirection = ShadowDirection::BottomRight;
+    int m_textOutlineWidth = 0;
+
     ToolType m_blurType = ToolType::Mosaic;
     int m_blurIntensity = 15;
     QString m_penStyle = "Solid Pen";

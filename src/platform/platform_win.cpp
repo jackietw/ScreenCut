@@ -24,15 +24,27 @@ namespace ScreenCut {
 namespace Platform {
 
 void excludeWindowFromCapture(WId winId) {
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN)
     if (!winId) return;
-    BOOL res = SetWindowDisplayAffinity(reinterpret_cast<HWND>(winId), WDA_EXCLUDEFROMCAPTURE);
+    BOOL res = SetWindowDisplayAffinity((HWND)winId, WDA_EXCLUDEFROMCAPTURE);
     if (!res) {
         qDebug() << "[Platform::excludeWindowFromCapture] SetWindowDisplayAffinity failed for winId:" << winId;
     }
 #else
     Q_UNUSED(winId);
 #endif
+}
+
+void preventAppNap() {
+    // No-op on Windows
+}
+
+void allowAppNap() {
+    // No-op on Windows
+}
+
+void activateApp() {
+    // Implement if needed for Windows, or leave no-op
 }
 
 void setDarkTitlebar(WId winId) {

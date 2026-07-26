@@ -177,6 +177,7 @@ private:
     ~CaptureEngine() override;
 
     void doActualCapture(CaptureMode mode);
+    void showCaptureOverlay(CaptureMode mode);
 
     static CaptureEngine* s_instance;
     QPixmap m_fullDesktopSnapshot;

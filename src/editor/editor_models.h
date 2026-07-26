@@ -32,6 +32,18 @@ enum class ToolType {
     Highlight
 };
 
+enum class ShadowDirection {
+    None,
+    TopLeft,
+    Top,
+    TopRight,
+    Left,
+    Right,
+    BottomLeft,
+    Bottom,
+    BottomRight
+};
+
 class AnnotationItem {
 public:
     virtual ~AnnotationItem() = default;
@@ -40,8 +52,8 @@ public:
     virtual void draw(QPainter& painter, const QPixmap* background = nullptr) = 0;
     virtual bool contains(const QPoint& pos) const = 0;
     virtual void moveBy(const QPoint& delta) = 0;
-    virtual int hitTestHandle(const QPoint& pos) const { return -1; }
-    virtual void moveHandle(int handleId, const QPoint& newPos) {}
+    virtual int hitTestHandle(const QPoint& /*pos*/) const { return -1; }
+    virtual void moveHandle(int /*handleId*/, const QPoint& /*newPos*/) {}
     virtual std::shared_ptr<AnnotationItem> clone() const = 0;
     virtual QJsonObject toJson() const = 0;
     static std::shared_ptr<AnnotationItem> fromJson(const QJsonObject& json);
@@ -109,6 +121,9 @@ public:
 
 class TextAnnotation : public AnnotationItem {
 public:
+    enum class TextAlign { Left, Center, Right };
+    enum class VerticalAlign { Top, Middle, Bottom };
+
     TextAnnotation(const QPoint& pos, const QString& text);
 
     ToolType getType() const override { return ToolType::Text; }
@@ -122,7 +137,23 @@ public:
     QString text;
     int fontSize = 24;
     QString fontFamily = "Arial";
-    bool hasBackgroundBox = true;
+    bool hasBackgroundBox = false; // Still keeping this if needed
+
+    bool isBold = false;
+    bool isItalic = false;
+    bool isUnderline = false;
+    bool isStrikeOut = false;
+    
+    TextAlign hAlign = TextAlign::Left;
+    VerticalAlign vAlign = VerticalAlign::Top;
+    
+    int opacity = 100; // 0-100%
+    int lineSpacing = 0;
+    
+    QColor outlineColor = Qt::transparent;
+    bool hasShadow = false;
+    int outlineWidth = 0; // mapped from line width slider if outline color is active
+    ShadowDirection shadowDirection = ShadowDirection::BottomRight;
 };
 
 class StepMarkerAnnotation : public AnnotationItem {

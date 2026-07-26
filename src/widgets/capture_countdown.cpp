@@ -17,7 +17,9 @@ CountdownWidget::CountdownWidget(int seconds, QWidget* parent)
     : QWidget(parent)
     , m_remainingSeconds(seconds)
 {
-    setWindowFlags(Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+    // Use Qt::Window (not Qt::Tool) so macOS does NOT auto-hide it
+    // when the app loses focus. Tool/NSPanel windows are hidden on deactivation.
+    setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
     setAttribute(Qt::WA_TranslucentBackground);
     setAttribute(Qt::WA_ShowWithoutActivating);
 
@@ -28,15 +30,12 @@ CountdownWidget::CountdownWidget(int seconds, QWidget* parent)
     m_lblNumber->setAlignment(Qt::AlignCenter);
     m_lblNumber->setStyleSheet("color: white; font-size: 48px; font-weight: bold; background-color: rgba(20, 22, 28, 220); border: 2px solid #00a8ff; border-radius: 12px; padding: 10px; min-width: 60px; min-height: 60px;");
     layout->addWidget(m_lblNumber);
-
-    m_timer = new QTimer(this);
-    m_timer->setInterval(1000);
-    connect(m_timer, &QTimer::timeout, this, &CountdownWidget::onTick);
 }
 
 CountdownWidget::~CountdownWidget() = default;
 
 void CountdownWidget::startCountdown() {
+    qDebug() << "[CountdownWidget] startCountdown(). Seconds:" << m_remainingSeconds;
     adjustSize();
     QScreen* screen = QGuiApplication::primaryScreen();
     if (screen) {
@@ -48,28 +47,19 @@ void CountdownWidget::startCountdown() {
     show();
     raise();
     Platform::excludeWindowFromCapture(winId());
+    // Use NSFloatingWindowLevel (3) instead of CGShieldingWindowLevel (~1000)
+    // so the widget stays visible but doesn't interfere with event delivery.
+    // We just need it above normal windows, not above the screen shield.
     Platform::elevateWindowAboveSystemBars(winId());
-    m_timer->start();
 }
 
-void CountdownWidget::onTick() {
-    m_remainingSeconds--;
-    if (m_remainingSeconds <= 0) {
-        m_timer->stop();
-        hide();
-        close();
-        QTimer::singleShot(250, this, [this]() {
-            emit completed();
-        });
-    } else {
-        m_lblNumber->setText(QString::number(m_remainingSeconds));
-    }
+void CountdownWidget::updateDisplay(int secondsLeft) {
+    m_lblNumber->setText(QString::number(secondsLeft));
 }
 
 void CountdownWidget::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton || event->button() == Qt::RightButton) {
         qDebug() << "[CountdownWidget] Clicked by user. Cancelling countdown.";
-        m_timer->stop();
         emit cancelled();
         close();
     } else {

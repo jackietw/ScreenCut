@@ -8,7 +8,6 @@
 
 #include <QWidget>
 #include <QLabel>
-#include <QTimer>
 
 namespace ScreenCut {
 
@@ -19,6 +18,7 @@ public:
     ~CountdownWidget() override;
 
     void startCountdown();
+    void updateDisplay(int secondsLeft);
 
 signals:
     void completed();
@@ -27,13 +27,9 @@ signals:
 protected:
     void mousePressEvent(QMouseEvent* event) override;
 
-private slots:
-    void onTick();
-
 private:
     int m_remainingSeconds;
-    QLabel* m_lblNumber;
-    QTimer* m_timer;
+    QLabel* m_lblNumber = nullptr;
 };
 
 } // namespace ScreenCut

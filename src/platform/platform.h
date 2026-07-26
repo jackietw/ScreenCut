@@ -25,6 +25,9 @@ namespace Platform {
  * - macOS/Linux: No-op or native window level exclusion
  */
 void excludeWindowFromCapture(WId winId);
+void preventAppNap();
+void allowAppNap();
+void activateApp();
 
 /**
  * Apply dark title bar styling to a top-level window.

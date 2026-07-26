@@ -19,6 +19,8 @@
 #include <QPushButton>
 #include <QScreen>
 #include <QStyle>
+#include <functional>
+#include <memory>
 
 #ifdef Q_OS_WIN
 #include <dwmapi.h>
@@ -302,6 +304,8 @@ void CaptureEngine::startCapture(CaptureMode mode) {
   m_currentMode = mode;
   m_isPendingCapture = true;
 
+  Platform::preventAppNap();
+
   bool wasVisible = CaptureMainWindow::instance() &&
                     CaptureMainWindow::instance()->isVisible();
   if (wasVisible) {
@@ -315,24 +319,46 @@ void CaptureEngine::startCapture(CaptureMode mode) {
     qDebug() << "[CaptureEngine] Hiding visible Notification toasts before capture starts...";
   }
 
-  bool delay5s =
-      CaptureMainWindow::instance() &&
-      CaptureMainWindow::instance()->isSettingEnabled("5 Second Delay");
+  bool isImageCapture = (mode == CaptureMode::Region || mode == CaptureMode::FullScreen || mode == CaptureMode::Window || mode == CaptureMode::Scrolling);
+  bool delay5s = isImageCapture && CaptureMainWindow::instance() &&
+                 CaptureMainWindow::instance()->isSettingEnabled("5 Second Delay");
+
   if (delay5s) {
-    qDebug() << "[CaptureEngine] 5 Second Delay enabled. Showing top-right 5s "
-                "countdown overlay...";
+    qDebug() << "[CaptureEngine] 5 Second Delay enabled. Starting countdown driven by CaptureEngine timer...";
     CountdownWidget *countdown = new CountdownWidget(5, nullptr);
-    connect(countdown, &CountdownWidget::cancelled, this, [this]() {
+    connect(countdown, &CountdownWidget::cancelled, this, [this, countdown]() {
       qDebug()
           << "[CaptureEngine] 5s countdown cancelled by user clicking box.";
+      countdown->deleteLater();
       m_isPendingCapture = false;
+      Platform::allowAppNap();
       emit captureCancelled();
     });
-    connect(countdown, &CountdownWidget::completed, this, [this, mode]() {
-      qDebug() << "[CaptureEngine] 5s countdown completed. Taking snapshot...";
-      doActualCapture(mode);
-    });
     countdown->startCountdown();
+
+    // Drive the countdown from CaptureEngine's timer (not the widget's timer).
+    // CaptureEngine is a long-lived singleton QObject — its timers are reliable.
+    int *remaining = new int(5);
+
+    // Use a recursive helper via std::shared_ptr to allow self-reference
+    auto tick = std::make_shared<std::function<void()>>();
+    *tick = [this, countdown, remaining, mode, tick]() {
+      (*remaining)--;
+      qDebug() << "[CaptureEngine] Countdown tick. Remaining:" << *remaining;
+      if (*remaining <= 0) {
+        delete remaining;
+        countdown->hide();
+        countdown->close();
+        countdown->deleteLater();
+        qDebug() << "[CaptureEngine] 5s countdown completed. Taking snapshot...";
+        doActualCapture(mode);
+      } else {
+        countdown->updateDisplay(*remaining);
+        // Schedule next tick on CaptureEngine (this), not on the widget
+        QTimer::singleShot(1000, this, [tick]() { (*tick)(); });
+      }
+    };
+    QTimer::singleShot(1000, this, [tick]() { (*tick)(); });
   } else if (wasVisible || wasNotificationVisible) {
     QTimer::singleShot(250, this, [this, mode]() { doActualCapture(mode); });
   } else {
@@ -346,6 +372,9 @@ void CaptureEngine::doActualCapture(CaptureMode mode) {
     QTimer::singleShot(250, this, [this, mode]() { doActualCapture(mode); });
     return;
   }
+
+  // Step 1: Freeze the screen — capture the desktop snapshot immediately.
+  //         This works even when the app doesn't have focus.
   m_isPendingCapture = false;
   initSessionStateFromConfig();
   m_fullDesktopSnapshot = captureAllScreens();
@@ -357,10 +386,23 @@ void CaptureEngine::doActualCapture(CaptureMode mode) {
 
   if (m_currentMode == CaptureMode::FullScreen) {
     qDebug() << "[CaptureEngine] FullScreen mode completed immediately.";
+    Platform::allowAppNap();
     emit captureCompleted(m_fullDesktopSnapshot);
     return;
   }
 
+  // Step 2: Activate the app so macOS allows our overlay window to appear.
+  Platform::activateApp();
+
+  // Step 3: Wait for macOS to process the app activation (300ms),
+  //         then show the overlay with the frozen screenshot.
+  QTimer::singleShot(300, this, [this, mode]() {
+    showCaptureOverlay(mode);
+  });
+}
+
+void CaptureEngine::showCaptureOverlay(CaptureMode mode) {
+  Q_UNUSED(mode);
   if (m_overlayWidget) {
     m_overlayWidget->deleteLater();
     m_overlayWidget = nullptr;
@@ -529,9 +571,15 @@ void CaptureEngine::doActualCapture(CaptureMode mode) {
     m_overlayWidget->showFullScreen();
   }
 #endif
+  // Re-activate app and raise overlay — macOS focus changes are async,
+  // calling activateWindow() alone may not be enough if the app isn't
+  // yet in the foreground.
+  Platform::activateApp();
+  m_overlayWidget->raise();
   m_overlayWidget->activateWindow();
   m_overlayWidget->setFocus();
   Platform::elevateWindowAboveSystemBars(m_overlayWidget->winId(), false);
+  Platform::allowAppNap();
 }
 
 void CaptureEngine::startRegionCapture() { startCapture(CaptureMode::Region); }

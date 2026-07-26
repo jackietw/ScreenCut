@@ -41,6 +41,21 @@ signals:
     void lineStyleChanged(const QString& style);
     void fontFamilyChanged(const QString& family);
     void fontSizeChanged(int size);
+    
+    // New text property signals
+    void textIsBoldChanged(bool bold);
+    void textIsItalicChanged(bool italic);
+    void textIsUnderlineChanged(bool underline);
+    void textIsStrikeOutChanged(bool strike);
+    void textHAlignChanged(TextAnnotation::TextAlign align);
+    void textVAlignChanged(TextAnnotation::VerticalAlign align);
+    void textOpacityChanged(int opacity);
+    void textLineSpacingChanged(int spacing);
+    void textOutlineColorChanged(const QColor& color);
+    void textHasShadowChanged(bool hasShadow);
+    void textShadowDirectionChanged(ShadowDirection direction);
+    void textOutlineWidthChanged(int width);
+
     void blurTypeChanged(ToolType type);
     void blurIntensityChanged(int intensity);
     void penStyleChanged(const QString& style);
@@ -81,9 +96,42 @@ private:
     QComboBox* m_arrowTypeCombo = nullptr;
     QComboBox* m_shapeStyleCombo = nullptr;
     QComboBox* m_lineStyleCombo = nullptr;
-    QFontComboBox* m_fontCombo = nullptr;
     QComboBox* m_blurTypeCombo = nullptr;
     QComboBox* m_penStyleCombo = nullptr;
+    
+    // Text UI elements
+    QWidget* m_textAdvancedWidget = nullptr;
+    QFontComboBox* m_fontFamilyCombo = nullptr;
+    QComboBox* m_fontStyleCombo = nullptr;
+    QSlider* m_fontSizeSlider = nullptr;
+    QLabel* m_fontSizeLabel = nullptr;
+    QSlider* m_textLineWidthSlider = nullptr;
+    QLabel* m_textLineWidthLabel = nullptr;
+    
+    QPushButton* m_btnTextFill = nullptr;
+    QPushButton* m_btnTextOutline = nullptr;
+    QPushButton* m_btnTextShadow = nullptr;
+    
+    QPushButton* m_btnBold = nullptr;
+    QPushButton* m_btnItalic = nullptr;
+    QPushButton* m_btnUnderline = nullptr;
+    QPushButton* m_btnStrikeOut = nullptr;
+    
+    QPushButton* m_btnAlignLeft = nullptr;
+    QPushButton* m_btnAlignCenter = nullptr;
+    QPushButton* m_btnAlignRight = nullptr;
+    QPushButton* m_btnAlignTop = nullptr;
+    QPushButton* m_btnAlignMiddle = nullptr;
+    QPushButton* m_btnAlignBottom = nullptr;
+    
+    QSlider* m_opacitySlider = nullptr;
+    QLabel* m_opacityLabel = nullptr;
+    QSlider* m_spacingSlider = nullptr;
+    QLabel* m_spacingLabel = nullptr;
+    
+    QColor m_textOutlineColor = Qt::transparent;
+    bool m_textHasShadow = false;
+    ShadowDirection m_textShadowDirection = ShadowDirection::BottomRight;
     
     QColor m_selectedColor = QColor(255, 59, 48);
     int m_currentWidth = 3;

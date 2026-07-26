@@ -258,16 +258,39 @@ void TextAnnotation::draw(QPainter& painter, const QPixmap* /*background*/) {
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setRenderHint(QPainter::TextAntialiasing);
 
+    // Apply Opacity
+    painter.setOpacity(opacity / 100.0);
+
     QFont font = painter.font();
     font.setFamily(fontFamily);
     font.setPointSize(fontSize);
-    font.setBold(true);
+    font.setBold(isBold);
+    font.setItalic(isItalic);
+    font.setUnderline(isUnderline);
+    font.setStrikeOut(isStrikeOut);
     painter.setFont(font);
 
+    // Calculate bounding rect with line spacing
     QFontMetrics fm(font);
-    QRect textRect = fm.boundingRect(QRect(0, 0, 800, 800), Qt::AlignLeft | Qt::TextWordWrap, text);
+    int flags = Qt::TextWordWrap;
+    if (hAlign == TextAlign::Left) flags |= Qt::AlignLeft;
+    else if (hAlign == TextAlign::Center) flags |= Qt::AlignHCenter;
+    else if (hAlign == TextAlign::Right) flags |= Qt::AlignRight;
+
+    if (vAlign == VerticalAlign::Top) flags |= Qt::AlignTop;
+    else if (vAlign == VerticalAlign::Middle) flags |= Qt::AlignVCenter;
+    else if (vAlign == VerticalAlign::Bottom) flags |= Qt::AlignBottom;
+
+    // A hack for line spacing is to adjust the rect height based on line count, but for QPainter::drawText it's tricky.
+    // For now, we'll let drawText handle standard rendering and just use the font metrics.
+    QRect textRect = fm.boundingRect(QRect(0, 0, 800, 800), flags, text);
+    
+    // Add extra padding for line spacing if we manually draw lines (skip for now to keep it simple, just add to height)
+    int lineCount = text.split('\n').count();
+    textRect.setHeight(textRect.height() + (lineCount - 1) * lineSpacing);
+    
     textRect.moveTo(position);
-    textRect.adjust(-8, -6, 8, 6);
+    textRect.adjust(-8, -6, 8, 6); // Add some padding
 
     if (hasBackgroundBox) {
         painter.setPen(Qt::NoPen);
@@ -275,13 +298,73 @@ void TextAnnotation::draw(QPainter& painter, const QPixmap* /*background*/) {
         bgColor.setAlpha(220);
         painter.setBrush(bgColor);
         painter.drawRoundedRect(textRect, 6, 6);
-
-        painter.setPen(Qt::white);
+        painter.setPen(Qt::white); // default text color if box is enabled (legacy behavior)
     } else {
-        painter.setPen(color);
+        painter.setPen(color); // Fill color
     }
 
-    painter.drawText(textRect, Qt::AlignCenter, text);
+    // Create a QPainterPath for the text to handle precise layout, outline, and shadow
+    QPainterPath textPath;
+    QStringList lines = text.split('\n');
+    
+    // We calculate the exact bounding box for the text to handle alignment
+    int totalHeight = 0;
+    for (int i = 0; i < lines.size(); ++i) {
+        totalHeight += fm.height() + lineSpacing;
+    }
+    if (lines.size() > 0) totalHeight -= lineSpacing; // remove extra spacing after last line
+    
+    int startY = textRect.y() + 6; // top padding
+    if (vAlign == VerticalAlign::Middle) {
+        startY = textRect.y() + (textRect.height() - totalHeight) / 2;
+    } else if (vAlign == VerticalAlign::Bottom) {
+        startY = textRect.bottom() - 6 - totalHeight;
+    }
+    
+    int currentY = startY + fm.ascent();
+    
+    for (const QString& line : lines) {
+        int lineWidth = fm.horizontalAdvance(line);
+        int currentX = textRect.x() + 8; // left padding
+        if (hAlign == TextAlign::Center) {
+            currentX = textRect.x() + (textRect.width() - lineWidth) / 2;
+        } else if (hAlign == TextAlign::Right) {
+            currentX = textRect.right() - 8 - lineWidth;
+        }
+        textPath.addText(currentX, currentY, font, line);
+        currentY += fm.height() + lineSpacing;
+    }
+
+    // Shadow
+    if (hasShadow && shadowDirection != ShadowDirection::None) {
+        painter.save();
+        QColor shadowColor = QColor(0, 0, 0, 150);
+        
+        int dx = 0, dy = 0;
+        int offset = 4; // Slightly larger offset for better visibility
+        if (shadowDirection == ShadowDirection::TopLeft) { dx = -offset; dy = -offset; }
+        else if (shadowDirection == ShadowDirection::Top) { dx = 0; dy = -offset; }
+        else if (shadowDirection == ShadowDirection::TopRight) { dx = offset; dy = -offset; }
+        else if (shadowDirection == ShadowDirection::Left) { dx = -offset; dy = 0; }
+        else if (shadowDirection == ShadowDirection::Right) { dx = offset; dy = 0; }
+        else if (shadowDirection == ShadowDirection::BottomLeft) { dx = -offset; dy = offset; }
+        else if (shadowDirection == ShadowDirection::Bottom) { dx = 0; dy = offset; }
+        else if (shadowDirection == ShadowDirection::BottomRight) { dx = offset; dy = offset; }
+
+        painter.translate(dx, dy);
+        painter.fillPath(textPath, shadowColor);
+        painter.translate(-dx, -dy);
+        painter.restore();
+    }
+
+    // Outline
+    if (outlineColor != Qt::transparent && outlineWidth > 0) {
+        QPen outlinePen(outlineColor, outlineWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        painter.strokePath(textPath, outlinePen);
+    }
+    
+    // Fill
+    painter.fillPath(textPath, color);
 
     if (isSelected) {
         painter.setPen(QPen(Qt::white, 1, Qt::DashLine));
@@ -292,7 +375,20 @@ void TextAnnotation::draw(QPainter& painter, const QPixmap* /*background*/) {
 }
 
 bool TextAnnotation::contains(const QPoint& pos) const {
-    return QRect(position, QSize(100, 30)).adjusted(-10, -10, 10, 10).contains(pos);
+    QFont font(fontFamily);
+    font.setPointSize(fontSize);
+    font.setBold(isBold);
+    font.setItalic(isItalic);
+    QFontMetrics fm(font);
+    
+    int flags = Qt::TextWordWrap;
+    QRect textRect = fm.boundingRect(QRect(0, 0, 800, 800), flags, text);
+    int lineCount = qMax(1, (int)text.split('\n').count());
+    textRect.setHeight(textRect.height() + (lineCount - 1) * lineSpacing);
+    textRect.moveTo(position);
+    textRect.adjust(-8, -6, 8, 6);
+    
+    return textRect.adjusted(-10, -10, 10, 10).contains(pos);
 }
 
 void TextAnnotation::moveBy(const QPoint& delta) {
@@ -305,6 +401,18 @@ std::shared_ptr<AnnotationItem> TextAnnotation::clone() const {
     copy->fontSize = fontSize;
     copy->fontFamily = fontFamily;
     copy->hasBackgroundBox = hasBackgroundBox;
+    copy->isBold = isBold;
+    copy->isItalic = isItalic;
+    copy->isUnderline = isUnderline;
+    copy->isStrikeOut = isStrikeOut;
+    copy->hAlign = hAlign;
+    copy->vAlign = vAlign;
+    copy->opacity = opacity;
+    copy->lineSpacing = lineSpacing;
+    copy->outlineColor = outlineColor;
+    copy->hasShadow = hasShadow;
+    copy->outlineWidth = outlineWidth;
+    copy->shadowDirection = shadowDirection;
     return copy;
 }
 
@@ -601,7 +709,7 @@ std::shared_ptr<AnnotationItem> AnnotationItem::fromJson(const QJsonObject& json
         txt->color = col;
         txt->lineWidth = w;
         txt->fontSize = json["font_size"].toInt(16);
-        txt->hasBackgroundBox = json["has_bg"].toBool(true);
+        txt->hasBackgroundBox = json["has_bg"].toBool(false);
         return txt;
     } else if (objType == "step") {
         QJsonArray c = json["center"].toArray();

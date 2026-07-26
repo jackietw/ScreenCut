@@ -19,6 +19,7 @@
 #include "../resources/IconUtils.h"
 #include "../core/common_project.h"
 #include "../widgets/common_notification.h"
+#include <QTimer>
 
 namespace ScreenCut {
 
@@ -73,6 +74,7 @@ void EditorMainWindow::setPixmap(const QPixmap& pixmap) {
         m_canvas->setBackground(pixmap);
         updateResolutionLabel();
         updateZoomLabel();
+        QTimer::singleShot(10, this, &EditorMainWindow::autoFit);
     }
 }
 
@@ -150,6 +152,20 @@ void EditorMainWindow::initUI() {
     connect(m_propsPanel, &EditorPropsPanel::lineStyleChanged, m_canvas, &EditorCanvas::setLineStyle);
     connect(m_propsPanel, &EditorPropsPanel::fontFamilyChanged, m_canvas, &EditorCanvas::setFontFamily);
     connect(m_propsPanel, &EditorPropsPanel::fontSizeChanged, m_canvas, &EditorCanvas::setFontSize);
+    
+    // Advanced text properties
+    connect(m_propsPanel, &EditorPropsPanel::textIsBoldChanged, m_canvas, &EditorCanvas::setTextIsBold);
+    connect(m_propsPanel, &EditorPropsPanel::textIsItalicChanged, m_canvas, &EditorCanvas::setTextIsItalic);
+    connect(m_propsPanel, &EditorPropsPanel::textIsUnderlineChanged, m_canvas, &EditorCanvas::setTextIsUnderline);
+    connect(m_propsPanel, &EditorPropsPanel::textIsStrikeOutChanged, m_canvas, &EditorCanvas::setTextIsStrikeOut);
+    connect(m_propsPanel, &EditorPropsPanel::textHAlignChanged, m_canvas, &EditorCanvas::setTextHAlign);
+    connect(m_propsPanel, &EditorPropsPanel::textVAlignChanged, m_canvas, &EditorCanvas::setTextVAlign);
+    connect(m_propsPanel, &EditorPropsPanel::textOpacityChanged, m_canvas, &EditorCanvas::setTextOpacity);
+    connect(m_propsPanel, &EditorPropsPanel::textLineSpacingChanged, m_canvas, &EditorCanvas::setTextLineSpacing);
+    connect(m_propsPanel, &EditorPropsPanel::textOutlineColorChanged, m_canvas, &EditorCanvas::setTextOutlineColor);
+    connect(m_propsPanel, &EditorPropsPanel::textHasShadowChanged, m_canvas, &EditorCanvas::setTextHasShadow);
+    connect(m_propsPanel, &EditorPropsPanel::textShadowDirectionChanged, m_canvas, &EditorCanvas::setTextShadowDirection);
+    connect(m_propsPanel, &EditorPropsPanel::textOutlineWidthChanged, m_canvas, &EditorCanvas::setTextOutlineWidth);
     connect(m_propsPanel, &EditorPropsPanel::blurTypeChanged, m_canvas, &EditorCanvas::setBlurType);
     connect(m_propsPanel, &EditorPropsPanel::blurIntensityChanged, m_canvas, &EditorCanvas::setBlurIntensity);
     connect(m_propsPanel, &EditorPropsPanel::penStyleChanged, m_canvas, &EditorCanvas::setPenStyle);
@@ -186,7 +202,12 @@ void EditorMainWindow::initBottomBar() {
     
     QMenu* zoomMenu = new QMenu(this);
     zoomMenu->setStyleSheet("QMenu { background-color: #2d3748; color: white; } QMenu::item:selected { background-color: #3b82f6; }");
-    for (double z : {0.5, 0.8, 1.0, 1.5, 2.0}) {
+    
+    QAction* actAutoFit = zoomMenu->addAction("Auto fit");
+    connect(actAutoFit, &QAction::triggered, this, &EditorMainWindow::autoFit);
+    zoomMenu->addSeparator();
+
+    for (qreal z : {0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0}) {
         QAction* act = zoomMenu->addAction(QString("%1%").arg(z * 100));
         connect(act, &QAction::triggered, this, [this, z]() { m_canvas->setZoom(z); });
     }
@@ -314,6 +335,19 @@ void EditorMainWindow::dropEvent(QDropEvent* event) {
         }
     }
     event->ignore();
+}
+
+void EditorMainWindow::autoFit() {
+    if (!m_canvas || !m_scrollArea || m_canvas->background().isNull()) return;
+    QSize viewSize = m_scrollArea->viewport()->size();
+    QSize imageSize = m_canvas->background().size();
+    if (imageSize.width() <= 0 || imageSize.height() <= 0) return;
+    
+    qreal zoomX = (qreal)(viewSize.width() - 40) / imageSize.width();
+    qreal zoomY = (qreal)(viewSize.height() - 40) / imageSize.height();
+    qreal z = qMin(zoomX, zoomY);
+    if (z > 1.0) z = 1.0;
+    m_canvas->setZoom(z);
 }
 
 } // namespace ScreenCut

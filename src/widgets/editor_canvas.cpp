@@ -117,6 +117,102 @@ void EditorCanvas::setFontSize(int size) {
     }
 }
 
+void EditorCanvas::setTextIsBold(bool bold) {
+    m_textIsBold = bold;
+    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
+        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->isBold = bold;
+        update(); emit historyChanged();
+    }
+}
+
+void EditorCanvas::setTextIsItalic(bool italic) {
+    m_textIsItalic = italic;
+    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
+        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->isItalic = italic;
+        update(); emit historyChanged();
+    }
+}
+
+void EditorCanvas::setTextIsUnderline(bool underline) {
+    m_textIsUnderline = underline;
+    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
+        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->isUnderline = underline;
+        update(); emit historyChanged();
+    }
+}
+
+void EditorCanvas::setTextIsStrikeOut(bool strike) {
+    m_textIsStrikeOut = strike;
+    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
+        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->isStrikeOut = strike;
+        update(); emit historyChanged();
+    }
+}
+
+void EditorCanvas::setTextHAlign(TextAnnotation::TextAlign align) {
+    m_textHAlign = align;
+    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
+        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->hAlign = align;
+        update(); emit historyChanged();
+    }
+}
+
+void EditorCanvas::setTextVAlign(TextAnnotation::VerticalAlign align) {
+    m_textVAlign = align;
+    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
+        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->vAlign = align;
+        update(); emit historyChanged();
+    }
+}
+
+void EditorCanvas::setTextOpacity(int opacity) {
+    m_textOpacity = opacity;
+    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
+        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->opacity = opacity;
+        update(); emit historyChanged();
+    }
+}
+
+void EditorCanvas::setTextLineSpacing(int spacing) {
+    m_textLineSpacing = spacing;
+    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
+        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->lineSpacing = spacing;
+        update(); emit historyChanged();
+    }
+}
+
+void EditorCanvas::setTextOutlineColor(const QColor& color) {
+    m_textOutlineColor = color;
+    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
+        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->outlineColor = color;
+        update(); emit historyChanged();
+    }
+}
+
+void EditorCanvas::setTextHasShadow(bool hasShadow) {
+    m_textHasShadow = hasShadow;
+    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
+        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->hasShadow = hasShadow;
+        update(); emit historyChanged();
+    }
+}
+
+void EditorCanvas::setTextShadowDirection(ShadowDirection direction) {
+    m_textShadowDirection = direction;
+    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
+        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->shadowDirection = direction;
+        update(); emit historyChanged();
+    }
+}
+
+void EditorCanvas::setTextOutlineWidth(int width) {
+    m_textOutlineWidth = width;
+    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
+        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->outlineWidth = width;
+        update(); emit historyChanged();
+    }
+}
+
 void EditorCanvas::setBlurType(ToolType type) {
     m_blurType = type;
     if (m_selectedItem && (m_selectedItem->getType() == ToolType::Mosaic || m_selectedItem->getType() == ToolType::Blur)) {
@@ -245,11 +341,35 @@ void EditorCanvas::commitText() {
         txtObj->color = m_currentColor;
         txtObj->fontFamily = m_fontFamily;
         txtObj->fontSize = m_fontSize;
+        txtObj->isBold = m_textIsBold;
+        txtObj->isItalic = m_textIsItalic;
+        txtObj->isUnderline = m_textIsUnderline;
+        txtObj->isStrikeOut = m_textIsStrikeOut;
+        txtObj->hAlign = m_textHAlign;
+        txtObj->vAlign = m_textVAlign;
+        txtObj->opacity = m_textOpacity;
+        txtObj->lineSpacing = m_textLineSpacing;
+        txtObj->outlineColor = m_textOutlineColor;
+        txtObj->hasShadow = m_textHasShadow;
+        txtObj->shadowDirection = m_textShadowDirection;
+        txtObj->outlineWidth = m_textOutlineWidth;
     } else {
         auto txtItem = std::make_shared<TextAnnotation>(m_startPoint, text);
         txtItem->color = m_currentColor;
         txtItem->fontFamily = m_fontFamily;
         txtItem->fontSize = m_fontSize;
+        txtItem->isBold = m_textIsBold;
+        txtItem->isItalic = m_textIsItalic;
+        txtItem->isUnderline = m_textIsUnderline;
+        txtItem->isStrikeOut = m_textIsStrikeOut;
+        txtItem->hAlign = m_textHAlign;
+        txtItem->vAlign = m_textVAlign;
+        txtItem->opacity = m_textOpacity;
+        txtItem->lineSpacing = m_textLineSpacing;
+        txtItem->outlineColor = m_textOutlineColor;
+        txtItem->hasShadow = m_textHasShadow;
+        txtItem->shadowDirection = m_textShadowDirection;
+        txtItem->outlineWidth = m_textOutlineWidth;
         m_annotations.push_back(txtItem);
         m_selectedItem = txtItem;
         m_redoStack.clear();

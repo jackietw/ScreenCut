@@ -39,6 +39,69 @@ void excludeWindowFromCapture(WId winId) {
 #endif
 }
 
+static id s_activityId = nullptr;
+static int s_appNapRef = 0;
+
+void preventAppNap() {
+#if defined(Q_OS_MACOS) || defined(Q_OS_MAC)
+    s_appNapRef++;
+    if (s_appNapRef == 1 && !s_activityId) {
+        id processInfo = ((id (*)(id, SEL))objc_msgSend)((id)objc_getClass("NSProcessInfo"), sel_registerName("processInfo"));
+        if (processInfo) {
+            unsigned long long options = 0x00FFFFFFULL; // NSActivityUserInitiated
+            id reasonString = ((id (*)(id, SEL, const char*))objc_msgSend)((id)objc_getClass("NSString"), sel_registerName("stringWithUTF8String:"), "ScreenCut Capture Countdown");
+            s_activityId = ((id (*)(id, SEL, unsigned long long, id))objc_msgSend)(processInfo, sel_registerName("beginActivityWithOptions:reason:"), options, reasonString);
+            ((id (*)(id, SEL))objc_msgSend)(s_activityId, sel_registerName("retain"));
+            qDebug() << "[Platform] preventAppNap: Activity started (Ref:" << s_appNapRef << ")";
+        }
+    }
+#endif
+}
+
+void allowAppNap() {
+#if defined(Q_OS_MACOS) || defined(Q_OS_MAC)
+    if (s_appNapRef > 0) {
+        s_appNapRef--;
+        if (s_appNapRef == 0 && s_activityId) {
+            id processInfo = ((id (*)(id, SEL))objc_msgSend)((id)objc_getClass("NSProcessInfo"), sel_registerName("processInfo"));
+            if (processInfo) {
+                ((void (*)(id, SEL, id))objc_msgSend)(processInfo, sel_registerName("endActivity:"), s_activityId);
+                ((void (*)(id, SEL))objc_msgSend)(s_activityId, sel_registerName("release"));
+                s_activityId = nullptr;
+                qDebug() << "[Platform] allowAppNap: Activity ended (Ref: 0)";
+            }
+        }
+    }
+#endif
+}
+
+void activateApp() {
+#if defined(Q_OS_MACOS) || defined(Q_OS_MAC)
+    // Method 1: Use NSRunningApplication to activate — works on all macOS versions.
+    // NSApplicationActivateIgnoringOtherApps = 1 << 1 = 2
+    id runningApp = ((id (*)(id, SEL))objc_msgSend)(
+        (id)objc_getClass("NSRunningApplication"),
+        sel_registerName("currentApplication"));
+    if (runningApp) {
+        ((BOOL (*)(id, SEL, unsigned long))objc_msgSend)(
+            runningApp,
+            sel_registerName("activateWithOptions:"),
+            (unsigned long)2 /* NSApplicationActivateIgnoringOtherApps */);
+    }
+
+    // Method 2: Also call the legacy API as fallback for older macOS.
+    id nsApp = ((id (*)(id, SEL))objc_msgSend)(
+        (id)objc_getClass("NSApplication"),
+        sel_registerName("sharedApplication"));
+    if (nsApp) {
+        ((void (*)(id, SEL, BOOL))objc_msgSend)(
+            nsApp, sel_registerName("activateIgnoringOtherApps:"), YES);
+    }
+
+    qDebug() << "[Platform] activateApp called.";
+#endif
+}
+
 void setDarkTitlebar(WId winId) {
   // macOS / Linux: dark mode follows system or Qt palette theme natively
   Q_UNUSED(winId);

@@ -3,40 +3,40 @@
  * SPDX-License-Identifier: LGPL-2.1-or-later
  */
 
+#include <QAction>
 #include <QApplication>
 #include <QClipboard>
-#include <QSystemTrayIcon>
-#include <QMenu>
-#include <QAction>
-#include <QMessageBox>
+#include <QCommandLineOption>
+#include <QCommandLineParser>
+#include <QDebug>
 #include <QIcon>
 #include <QKeySequence>
+#include <QMenu>
+#include <QMessageBox>
+#include <QSharedMemory>
 #include <QShortcut>
 #include <QStyle>
-#include <QSharedMemory>
+#include <QSystemTrayIcon>
 #include <QTimer>
-#include <QCommandLineParser>
-#include <QCommandLineOption>
-#include <QDebug>
 #include <cstdio>
 #ifdef Q_OS_WIN
 #include <windows.h>
 #endif
-#include "version.h"
+#include "capture/capture_preferences.h"
+#include "capture/capture_window.h"
 #include "config.h"
 #include "core/capture_engine.h"
 #include "core/common_project.h"
-#include "capture/capture_window.h"
-#include "capture/capture_preferences.h"
 #include "resources/IconUtils.h"
+#include "version.h"
 #include "widgets/common_notification.h"
-#include <QProcess>
-#include <QDir>
 #include <QDateTime>
-#include <QStandardPaths>
+#include <QDir>
 #include <QElapsedTimer>
-#include <QFontDatabase>
 #include <QFont>
+#include <QFontDatabase>
+#include <QProcess>
+#include <QStandardPaths>
 
 static QElapsedTimer g_startupTimer;
 
@@ -44,293 +44,345 @@ using namespace ScreenCut;
 
 class QuitEventFilter : public QObject {
 public:
-    QuitEventFilter(QObject *parent = nullptr) : QObject(parent) {}
-    bool eventFilter(QObject *obj, QEvent *event) override {
-        if (event->type() == QEvent::Quit) {
-            qDebug() << "[QuitEventFilter] Received QEvent::Quit. Force quitting application.";
-            ::exit(0);
-        }
-        return QObject::eventFilter(obj, event);
+  QuitEventFilter(QObject *parent = nullptr) : QObject(parent) {}
+  bool eventFilter(QObject *obj, QEvent *event) override {
+    if (event->type() == QEvent::Quit) {
+      qDebug() << "[QuitEventFilter] Received QEvent::Quit. Force quitting "
+                  "application.";
+      ::exit(0);
     }
+    return QObject::eventFilter(obj, event);
+  }
 };
 
 int main(int argc, char *argv[]) {
-    g_startupTimer.start();
-    qDebug() << "[PERF] main() started:" << g_startupTimer.elapsed() << "ms";
-    // 1. High DPI scaling attributes are enabled by default in Qt 6
-    QApplication app(argc, argv);
-    app.setApplicationName(SCREENCUT_APP_NAME);
-    app.setOrganizationName(SCREENCUT_ORG_NAME);
-    app.setOrganizationDomain(SCREENCUT_ORG_DOMAIN);
-    app.setApplicationVersion(SCREENCUT_VERSION_STR);
-    app.setQuitOnLastWindowClosed(false); // Keep running in background tray
-    app.installEventFilter(new QuitEventFilter(&app));
+  g_startupTimer.start();
+  qDebug() << "[PERF] main() started:" << g_startupTimer.elapsed() << "ms";
+  // 1. High DPI scaling attributes are enabled by default in Qt 6
+  QApplication app(argc, argv);
+  app.setApplicationName(SCREENCUT_APP_NAME);
+  app.setOrganizationName(SCREENCUT_ORG_NAME);
+  app.setOrganizationDomain(SCREENCUT_ORG_DOMAIN);
+  app.setApplicationVersion(SCREENCUT_VERSION_STR);
+  app.setQuitOnLastWindowClosed(false); // Keep running in background tray
+  app.installEventFilter(new QuitEventFilter(&app));
 
-    QFont systemFont = app.font();
+  QFont systemFont = app.font();
 
-    int fontId = QFontDatabase::addApplicationFont(":/fonts/NotoSans-Regular.ttf");
-    QFontDatabase::addApplicationFont(":/fonts/NotoSans-SemiBold.ttf");
-    if (fontId != -1) {
-        QString family = QFontDatabase::applicationFontFamilies(fontId).at(0);
-        QFont defaultFont(family);
-        defaultFont.setPixelSize(13);
-        app.setFont(defaultFont);
-        qDebug() << "[Main] Loaded and set default font to:" << family;
-    } else {
-        qDebug() << "[Main] Warning: Failed to load NotoSans font from resources!";
-    }
+  int fontId =
+      QFontDatabase::addApplicationFont(":/fonts/NotoSans-Regular.ttf");
+  QFontDatabase::addApplicationFont(":/fonts/NotoSans-SemiBold.ttf");
+  if (fontId != -1) {
+    QString family = QFontDatabase::applicationFontFamilies(fontId).at(0);
+    QFont defaultFont(family);
+    defaultFont.setPixelSize(13);
+    app.setFont(defaultFont);
+    qDebug() << "[Main] Loaded and set default font to:" << family;
+  } else {
+    qDebug() << "[Main] Warning: Failed to load NotoSans font from resources!";
+  }
 
-
-    QCommandLineParser parser;
-    parser.setApplicationDescription("ScreenCut - Native Screen Capture Tool");
-    QCommandLineOption versionOption(QStringList() << "v" << "version", "Displays version information.");
-    parser.addOption(versionOption);
-    parser.addHelpOption();
-    QCommandLineOption debugOption(QStringList() << "d" << "debug", "Enable debug logging output.");
-    parser.addOption(debugOption);
+  QCommandLineParser parser;
+  parser.setApplicationDescription("ScreenCut - Native Screen Capture Tool");
+  QCommandLineOption versionOption(QStringList() << "v" << "version",
+                                   "Displays version information.");
+  parser.addOption(versionOption);
+  parser.addHelpOption();
+  QCommandLineOption debugOption(QStringList() << "d" << "debug",
+                                 "Enable debug logging output.");
+  parser.addOption(debugOption);
 
 #ifdef Q_OS_WIN
-    if (argc > 1 && AttachConsole(ATTACH_PARENT_PROCESS)) {
-        FILE* fp;
-        freopen_s(&fp, "CONOUT$", "w", stdout);
-        freopen_s(&fp, "CONOUT$", "w", stderr);
-    }
+  if (argc > 1 && AttachConsole(ATTACH_PARENT_PROCESS)) {
+    FILE *fp;
+    freopen_s(&fp, "CONOUT$", "w", stdout);
+    freopen_s(&fp, "CONOUT$", "w", stderr);
+  }
 #endif
 
-    parser.process(app);
+  parser.process(app);
 
-    if (parser.isSet(versionOption)) {
-        printf("%s %s\n", SCREENCUT_APP_NAME, SCREENCUT_VERSION_STR);
-        fflush(stdout);
-        return 0;
+  if (parser.isSet(versionOption)) {
+    printf("%s %s\n", SCREENCUT_APP_NAME, SCREENCUT_VERSION_STR);
+    fflush(stdout);
+    return 0;
+  }
+
+  // Initialize global configuration and logging system
+  Config::setupLogging();
+  qDebug() << "[PERF] Config::setupLogging() finished:"
+           << g_startupTimer.elapsed() << "ms";
+  qDebug() << "[Main] ScreenCut Application started. Version:"
+           << SCREENCUT_VERSION_STR << "| DebugMode:" << Config::isDebugMode();
+
+  // 2. Single instance lock using QSharedMemory (Temporarily disabled to
+  // prevent Windows zombie memory lock during dev!) QSharedMemory
+  // sharedMem("ScreenCut_2_0_Native_Qt6_SingleInstanceLock"); if
+  // (!sharedMem.create(1)) {
+  //     QMessageBox::warning(nullptr, "ScreenCut", "ScreenCut is already
+  //     running in the background system tray!"); return 0;
+  // }
+
+  // 3. System Tray Icon Setup
+  if (!QSystemTrayIcon::isSystemTrayAvailable()) {
+    QMessageBox::critical(nullptr, "ScreenCut",
+                          "System tray is not available on this system.");
+    return 1;
+  }
+
+  QSystemTrayIcon trayIcon;
+
+  // Create high-resolution SVG vector icon for System Tray
+  QIcon icon = createSvgIcon(SVG_APP_ICON, 64, 64);
+  trayIcon.setIcon(icon);
+  trayIcon.setToolTip(QString("%1 %2\n0ms Native Screen Capture Engine")
+                          .arg(SCREENCUT_APP_NAME, SCREENCUT_VERSION_STR));
+
+  QMenu *trayMenu = new QMenu();
+  trayMenu->setFont(systemFont);
+
+  QAction *openMainAction = new QAction("Open Capture Window", trayMenu);
+  openMainAction->setShortcut(QKeySequence("Ctrl+Shift+C"));
+
+  QAction *regionAction = new QAction("Region Capture", trayMenu);
+  regionAction->setShortcut(QKeySequence("Ctrl+Shift+A"));
+
+  QAction *windowAction = new QAction("Window Capture", trayMenu);
+  windowAction->setShortcut(QKeySequence("Ctrl+Shift+W"));
+
+  QAction *scrollAction = new QAction("Scrolling Capture", trayMenu);
+  scrollAction->setShortcut(QKeySequence("Ctrl+Shift+S"));
+
+  QAction *fullScreenAction = new QAction("Full Screen", trayMenu);
+  fullScreenAction->setShortcut(QKeySequence("Ctrl+Shift+F"));
+
+  trayMenu->addAction(openMainAction);
+  trayMenu->addSeparator();
+  trayMenu->addAction(regionAction);
+  trayMenu->addAction(windowAction);
+  trayMenu->addAction(scrollAction);
+  trayMenu->addAction(fullScreenAction);
+  trayMenu->addSeparator();
+
+  QAction *prefAction = new QAction("Preferences...", trayMenu);
+  QAction *aboutAction = new QAction("About ScreenCut...", trayMenu);
+  QAction *quitAction = new QAction("Exit", trayMenu);
+
+  trayMenu->addAction(prefAction);
+  trayMenu->addAction(aboutAction);
+  trayMenu->addAction(quitAction);
+
+  trayIcon.setContextMenu(trayMenu);
+
+  QObject::connect(trayMenu, &QMenu::aboutToShow, [=]() {
+    bool isSettingsOpen = false;
+    for (QWidget *widget : QApplication::topLevelWidgets()) {
+      if (widget->isVisible()) {
+        QString name = widget->objectName();
+        if (name == "CapturePreferencesDialog" || name == "PermissionsWindow") {
+          isSettingsOpen = true;
+          break;
+        }
+      }
     }
 
-    // Initialize global configuration and logging system
-    Config::setupLogging();
-    qDebug() << "[PERF] Config::setupLogging() finished:" << g_startupTimer.elapsed() << "ms";
-    qDebug() << "[Main] ScreenCut Application started. Version:" << SCREENCUT_VERSION_STR << "| DebugMode:" << Config::isDebugMode();
+    // Disable all capture and navigation actions while settings windows are
+    // open
+    regionAction->setEnabled(!isSettingsOpen);
+    windowAction->setEnabled(!isSettingsOpen);
+    scrollAction->setEnabled(!isSettingsOpen);
+    fullScreenAction->setEnabled(!isSettingsOpen);
+    openMainAction->setEnabled(!isSettingsOpen);
+    prefAction->setEnabled(!isSettingsOpen);
+    aboutAction->setEnabled(!isSettingsOpen);
+  });
 
-    // 2. Single instance lock using QSharedMemory (Temporarily disabled to prevent Windows zombie memory lock during dev!)
-    // QSharedMemory sharedMem("ScreenCut_2_0_Native_Qt6_SingleInstanceLock");
-    // if (!sharedMem.create(1)) {
-    //     QMessageBox::warning(nullptr, "ScreenCut", "ScreenCut is already running in the background system tray!");
-    //     return 0;
-    // }
+  trayIcon.show();
+  qDebug() << "[PERF] Tray icon created and shown:" << g_startupTimer.elapsed()
+           << "ms";
 
-    // 3. System Tray Icon Setup
-    if (!QSystemTrayIcon::isSystemTrayAvailable()) {
-        QMessageBox::critical(nullptr, "ScreenCut", "System tray is not available on this system.");
-        return 1;
+  // 4. Connect signals
+  QObject::connect(openMainAction, &QAction::triggered, []() {
+    CaptureMainWindow::instance()->show();
+    CaptureMainWindow::instance()->activateWindow();
+    CaptureMainWindow::instance()->raise();
+  });
+  QObject::connect(regionAction, &QAction::triggered, []() {
+    bool scrollCapture =
+        CaptureMainWindow::instance() &&
+        CaptureMainWindow::instance()->isSettingEnabled("Scroll Capture");
+    if (scrollCapture) {
+      CaptureEngine::instance()->startScrollingCapture();
+    } else {
+      CaptureEngine::instance()->startRegionCapture();
     }
+  });
+  QObject::connect(windowAction, &QAction::triggered,
+                   []() { CaptureEngine::instance()->startWindowCapture(); });
+  QObject::connect(scrollAction, &QAction::triggered, []() {
+    CaptureEngine::instance()->startScrollingCapture();
+  });
+  QObject::connect(fullScreenAction, &QAction::triggered, []() {
+    CaptureEngine::instance()->startFullScreenCapture();
+  });
+  QObject::connect(prefAction, &QAction::triggered, []() {
+    // PreferencesDialog is now a parentless top-level window
+    CapturePreferencesDialog::instance()->showNormal();
+    CapturePreferencesDialog::instance()->raise();
+    CapturePreferencesDialog::instance()->activateWindow();
+  });
+  QObject::connect(aboutAction, &QAction::triggered, []() {
+    CaptureMainWindow::instance()->show();
+    CaptureMainWindow::instance()->activateWindow();
+    CaptureMainWindow::instance()->raise();
+    CaptureMainWindow::instance()->showAboutOverlay();
+  });
+  QObject::connect(quitAction, &QAction::triggered, []() {
+    qDebug() << "[Main] User clicked Exit from tray menu. Force quitting.";
+    ::exit(0);
+  });
 
-    QSystemTrayIcon trayIcon;
-    
-    // Create high-resolution SVG vector icon for System Tray
-    QIcon icon = createSvgIcon(SVG_APP_ICON, 64, 64);
-    trayIcon.setIcon(icon);
-    trayIcon.setToolTip(QString("%1 %2\n0ms Native Screen Capture Engine").arg(SCREENCUT_APP_NAME, SCREENCUT_VERSION_STR));
+  QObject::connect(&trayIcon, &QSystemTrayIcon::activated,
+                   [](QSystemTrayIcon::ActivationReason reason) {
+                     if (reason == QSystemTrayIcon::Trigger ||
+                         reason == QSystemTrayIcon::DoubleClick) {
+                       CaptureMainWindow::instance()->show();
+                       CaptureMainWindow::instance()->activateWindow();
+                       CaptureMainWindow::instance()->raise();
+                     }
+                   });
 
-    QMenu* trayMenu = new QMenu();
-    trayMenu->setFont(systemFont);
-    
-    QAction* openMainAction = new QAction("📷 Open Capture Window", trayMenu);
-    openMainAction->setShortcut(QKeySequence("Ctrl+Shift+C"));
+  // 5. Connect capture completion and edit requests to check Image tab toggles
+  // or launch editor
+  auto launchEditorFunc = [](const QString &scutFilePath) {
+    qDebug() << "Launching SCEditor for:" << scutFilePath;
+    bool started = ScutProject::launchEditor({scutFilePath});
+    if (!started) {
+      QMessageBox::critical(
+          nullptr, "ScreenCut Error",
+          "Failed to launch standalone SCEditor application!");
+    }
+  };
 
-    QAction* regionAction = new QAction("✂️ Region Capture", trayMenu);
-    regionAction->setShortcut(QKeySequence("Ctrl+Shift+A"));
-    
-    QAction* windowAction = new QAction("🪟 Window Capture", trayMenu);
-    windowAction->setShortcut(QKeySequence("Ctrl+Shift+W"));
+  auto restoreMainWindowFunc = []() {
+    if (CaptureMainWindow::instance()) {
+      qDebug() << "Restoring CaptureMainWindow automatically after capture "
+                  "completion or cancellation...";
+      CaptureMainWindow::instance()->showNormal();
+      CaptureMainWindow::instance()->activateWindow();
+      CaptureMainWindow::instance()->raise();
+    }
+  };
 
-    QAction* scrollAction = new QAction("📜 Scrolling Capture", trayMenu);
-    scrollAction->setShortcut(QKeySequence("Ctrl+Shift+S"));
-
-    QAction* fullScreenAction = new QAction("🖥️ Full Screen", trayMenu);
-    fullScreenAction->setShortcut(QKeySequence("Ctrl+Shift+F"));
-
-    trayMenu->addAction(openMainAction);
-    trayMenu->addSeparator();
-    trayMenu->addAction(regionAction);
-    trayMenu->addAction(windowAction);
-    trayMenu->addAction(scrollAction);
-    trayMenu->addAction(fullScreenAction);
-    trayMenu->addSeparator();
-
-    QAction* prefAction = new QAction("⚙️ Preferences...", trayMenu);
-    QAction* aboutAction = new QAction("ℹ️ About ScreenCut...", trayMenu);
-    QAction* quitAction = new QAction("❌ Exit", trayMenu);
-
-    trayMenu->addAction(prefAction);
-    trayMenu->addAction(aboutAction);
-    trayMenu->addAction(quitAction);
-
-    trayIcon.setContextMenu(trayMenu);
-
-    QObject::connect(trayMenu, &QMenu::aboutToShow, [=]() {
-        bool isSettingsOpen = false;
-        for (QWidget *widget : QApplication::topLevelWidgets()) {
-            if (widget->isVisible()) {
-                QString name = widget->objectName();
-                if (name == "CapturePreferencesDialog" || name == "PermissionsWindow") {
-                    isSettingsOpen = true;
-                    break;
-                }
-            }
-        }
-        
-        // Disable all capture and navigation actions while settings windows are open
-        regionAction->setEnabled(!isSettingsOpen);
-        windowAction->setEnabled(!isSettingsOpen);
-        scrollAction->setEnabled(!isSettingsOpen);
-        fullScreenAction->setEnabled(!isSettingsOpen);
-        openMainAction->setEnabled(!isSettingsOpen);
-        prefAction->setEnabled(!isSettingsOpen);
-        aboutAction->setEnabled(!isSettingsOpen);
-    });
-
-    trayIcon.show();
-    qDebug() << "[PERF] Tray icon created and shown:" << g_startupTimer.elapsed() << "ms";
-
-    // 4. Connect signals
-    QObject::connect(openMainAction, &QAction::triggered, []() {
-        CaptureMainWindow::instance()->show();
-        CaptureMainWindow::instance()->activateWindow();
-        CaptureMainWindow::instance()->raise();
-    });
-    QObject::connect(regionAction, &QAction::triggered, []() {
-        bool scrollCapture = CaptureMainWindow::instance() && CaptureMainWindow::instance()->isSettingEnabled("Scroll Capture");
-        if (scrollCapture) {
-            CaptureEngine::instance()->startScrollingCapture();
-        } else {
-            CaptureEngine::instance()->startRegionCapture();
-        }
-    });
-    QObject::connect(windowAction, &QAction::triggered, []() {
-        CaptureEngine::instance()->startWindowCapture();
-    });
-    QObject::connect(scrollAction, &QAction::triggered, []() {
-        CaptureEngine::instance()->startScrollingCapture();
-    });
-    QObject::connect(fullScreenAction, &QAction::triggered, []() {
-        CaptureEngine::instance()->startFullScreenCapture();
-    });
-    QObject::connect(prefAction, &QAction::triggered, []() {
-        // PreferencesDialog is now a parentless top-level window
-        CapturePreferencesDialog::instance()->showNormal();
-        CapturePreferencesDialog::instance()->raise();
-        CapturePreferencesDialog::instance()->activateWindow();
-    });
-    QObject::connect(aboutAction, &QAction::triggered, []() {
-        CaptureMainWindow::instance()->show();
-        CaptureMainWindow::instance()->activateWindow();
-        CaptureMainWindow::instance()->raise();
-        CaptureMainWindow::instance()->showAboutOverlay();
-    });
-    QObject::connect(quitAction, &QAction::triggered, []() {
-        qDebug() << "[Main] User clicked Exit from tray menu. Force quitting.";
-        ::exit(0);
-    });
-
-    QObject::connect(&trayIcon, &QSystemTrayIcon::activated, [](QSystemTrayIcon::ActivationReason reason) {
-        if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick) {
-            CaptureMainWindow::instance()->show();
-            CaptureMainWindow::instance()->activateWindow();
-            CaptureMainWindow::instance()->raise();
-        }
-    });
-
-    // 5. Connect capture completion and edit requests to check Image tab toggles or launch editor
-    auto launchEditorFunc = [](const QString& scutFilePath) {
-        qDebug() << "Launching SCEditor for:" << scutFilePath;
-        bool started = ScutProject::launchEditor({ scutFilePath });
-        if (!started) {
-            QMessageBox::critical(nullptr, "ScreenCut Error", "Failed to launch standalone SCEditor application!");
-        }
-    };
-
-    auto restoreMainWindowFunc = []() {
-        if (CaptureMainWindow::instance()) {
-            qDebug() << "Restoring CaptureMainWindow automatically after capture completion or cancellation...";
-            CaptureMainWindow::instance()->showNormal();
-            CaptureMainWindow::instance()->activateWindow();
-            CaptureMainWindow::instance()->raise();
-        }
-    };
-
-    QObject::connect(CaptureEngine::instance(), &CaptureEngine::captureEdited, [launchEditorFunc, restoreMainWindowFunc](const QPixmap& pixmap) {
+  QObject::connect(
+      CaptureEngine::instance(), &CaptureEngine::captureEdited,
+      [launchEditorFunc, restoreMainWindowFunc](const QPixmap &pixmap) {
         qDebug() << "Capture edited! Size:" << pixmap.size();
         restoreMainWindowFunc();
         if (!pixmap.isNull()) {
-            QString libraryDir = ScutProject::getLibraryDir();
-            QString scutFilePath = QDir(libraryDir).filePath(
-                QString("Capture_%1.scut").arg(QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss_zzz")));
-            if (ScutProject::saveImageAsScut(pixmap, scutFilePath)) {
-                launchEditorFunc(scutFilePath);
-            } else {
-                QMessageBox::critical(nullptr, "ScreenCut Error", "Failed to save capture as .scut in My ScreenCut Library!");
-            }
+          QString libraryDir = ScutProject::getLibraryDir();
+          QString scutFilePath =
+              QDir(libraryDir)
+                  .filePath(QString("Capture_%1.scut")
+                                .arg(QDateTime::currentDateTime().toString(
+                                    "yyyyMMdd_hhmmss_zzz")));
+          if (ScutProject::saveImageAsScut(pixmap, scutFilePath)) {
+            launchEditorFunc(scutFilePath);
+          } else {
+            QMessageBox::critical(
+                nullptr, "ScreenCut Error",
+                "Failed to save capture as .scut in My ScreenCut Library!");
+          }
         }
-    });
+      });
 
-    QObject::connect(CaptureEngine::instance(), &CaptureEngine::captureCompleted, [launchEditorFunc, restoreMainWindowFunc](const QPixmap& pixmap) {
+  QObject::connect(
+      CaptureEngine::instance(), &CaptureEngine::captureCompleted,
+      [launchEditorFunc, restoreMainWindowFunc](const QPixmap &pixmap) {
         qDebug() << "Capture completed! Size:" << pixmap.size();
         restoreMainWindowFunc();
         if (!pixmap.isNull()) {
-            QString libraryDir = ScutProject::getLibraryDir();
-            QString scutFilePath = QDir(libraryDir).filePath(
-                QString("Capture_%1.scut").arg(QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss_zzz")));
-            
-            if (ScutProject::saveImageAsScut(pixmap, scutFilePath)) {
-                qDebug() << "Saved capture to My ScreenCut Library .scut file for IPC:" << scutFilePath;
-                bool previewInEditor = CaptureEngine::instance()->isSessionEditorEnabled();
-                bool copyToClipboard = CaptureEngine::instance()->isSessionClipboardEnabled();
+          QString libraryDir = ScutProject::getLibraryDir();
+          QString scutFilePath =
+              QDir(libraryDir)
+                  .filePath(QString("Capture_%1.scut")
+                                .arg(QDateTime::currentDateTime().toString(
+                                    "yyyyMMdd_hhmmss_zzz")));
 
-                if (copyToClipboard) {
-                    qDebug() << "Copy to Clipboard is enabled. Copying to clipboard...";
-                    QApplication::clipboard()->setPixmap(pixmap);
-                    Notification::showMessage("✅ Screenshot captured & copied to clipboard!", 2500);
-                }
+          if (ScutProject::saveImageAsScut(pixmap, scutFilePath)) {
+            qDebug()
+                << "Saved capture to My ScreenCut Library .scut file for IPC:"
+                << scutFilePath;
+            bool previewInEditor =
+                CaptureEngine::instance()->isSessionEditorEnabled();
+            bool copyToClipboard =
+                CaptureEngine::instance()->isSessionClipboardEnabled();
 
-                if (previewInEditor) {
-                    qDebug() << "Preview in Editor is enabled. Launching SCEditor...";
-                    launchEditorFunc(scutFilePath);
-                } else if (!copyToClipboard) {
-                    Notification::showMessage(QString("✅ Screenshot saved to:\n%1").arg(scutFilePath), 3500);
-                }
-            } else {
-                QMessageBox::critical(nullptr, "ScreenCut Error", "Failed to save capture as .scut in My ScreenCut Library!");
+            if (copyToClipboard) {
+              qDebug()
+                  << "Copy to Clipboard is enabled. Copying to clipboard...";
+              QApplication::clipboard()->setPixmap(pixmap);
+              Notification::showMessage(
+                  "✅ Screenshot captured & copied to clipboard!", 2500);
             }
-        }
-    });
 
-    QObject::connect(CaptureEngine::instance(), &CaptureEngine::captureCopied, [restoreMainWindowFunc](const QPixmap& pixmap) {
+            if (previewInEditor) {
+              qDebug() << "Preview in Editor is enabled. Launching SCEditor...";
+              launchEditorFunc(scutFilePath);
+            } else if (!copyToClipboard) {
+              Notification::showMessage(
+                  QString("✅ Screenshot saved to:\n%1").arg(scutFilePath),
+                  3500);
+            }
+          } else {
+            QMessageBox::critical(
+                nullptr, "ScreenCut Error",
+                "Failed to save capture as .scut in My ScreenCut Library!");
+          }
+        }
+      });
+
+  QObject::connect(
+      CaptureEngine::instance(), &CaptureEngine::captureCopied,
+      [restoreMainWindowFunc](const QPixmap &pixmap) {
         qDebug() << "Capture copied to clipboard! Size:" << pixmap.size();
         restoreMainWindowFunc();
         QApplication::clipboard()->setPixmap(pixmap);
         Notification::showMessage("✅ Screenshot copied to clipboard!", 2500);
-    });
+      });
 
-    QObject::connect(CaptureEngine::instance(), &CaptureEngine::captureSaved, [restoreMainWindowFunc](const QString& filePath) {
-        qDebug() << "Capture saved to file:" << filePath;
-        restoreMainWindowFunc();
-        Notification::showMessage(QString("✅ Screenshot saved to:\n%1").arg(filePath), 3500);
-    });
+  QObject::connect(CaptureEngine::instance(), &CaptureEngine::captureSaved,
+                   [restoreMainWindowFunc](const QString &filePath) {
+                     qDebug() << "Capture saved to file:" << filePath;
+                     restoreMainWindowFunc();
+                     Notification::showMessage(
+                         QString("✅ Screenshot saved to:\n%1").arg(filePath),
+                         3500);
+                   });
 
-    QObject::connect(CaptureEngine::instance(), &CaptureEngine::captureCancelled, [restoreMainWindowFunc]() {
-        qDebug() << "Capture cancelled by user.";
-        restoreMainWindowFunc();
-    });
+  QObject::connect(CaptureEngine::instance(), &CaptureEngine::captureCancelled,
+                   [restoreMainWindowFunc]() {
+                     qDebug() << "Capture cancelled by user.";
+                     restoreMainWindowFunc();
+                   });
 
-    Notification::showMessage(QString("%1 Ready\nClick tray icon to capture screen!").arg(SCREENCUT_APP_NAME), 3000);
+  Notification::showMessage(
+      QString("%1 Ready\nClick tray icon to capture screen!")
+          .arg(SCREENCUT_APP_NAME),
+      3000);
 
-    // 6. Show CaptureMainWindow on launch so user gets immediate visual feedback matching the Python prototype!
-    qDebug() << "[PERF] Before QTimer::singleShot:" << g_startupTimer.elapsed() << "ms";
-    QTimer::singleShot(100, []() {
-        qDebug() << "[PERF] CaptureMainWindow instance about to be called:" << g_startupTimer.elapsed() << "ms";
-        CaptureMainWindow::instance()->show();
-        qDebug() << "[PERF] CaptureMainWindow shown on screen:" << g_startupTimer.elapsed() << "ms";
-    });
+  // 6. Show CaptureMainWindow on launch so user gets immediate visual feedback
+  // matching the Python prototype!
+  qDebug() << "[PERF] Before QTimer::singleShot:" << g_startupTimer.elapsed()
+           << "ms";
+  QTimer::singleShot(100, []() {
+    qDebug() << "[PERF] CaptureMainWindow instance about to be called:"
+             << g_startupTimer.elapsed() << "ms";
+    CaptureMainWindow::instance()->show();
+    qDebug() << "[PERF] CaptureMainWindow shown on screen:"
+             << g_startupTimer.elapsed() << "ms";
+  });
 
-    qDebug() << "[PERF] Entering app.exec():" << g_startupTimer.elapsed() << "ms";
-    return app.exec();
+  qDebug() << "[PERF] Entering app.exec():" << g_startupTimer.elapsed() << "ms";
+  return app.exec();
 }

@@ -41,6 +41,7 @@ public slots:
     void copyToClipboard();
     void saveToFile();
     void openFile();
+    void autoFit();
 
 private:
     void initUI();
