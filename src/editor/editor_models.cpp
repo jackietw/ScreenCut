@@ -145,6 +145,13 @@ void ShapeAnnotation::draw(QPainter& painter, const QPixmap* /*background*/) {
         painter.drawRect(r.right() - 4, r.top() - 4, 8, 8);
         painter.drawRect(r.left() - 4, r.bottom() - 4, 8, 8);
         painter.drawRect(r.right() - 4, r.bottom() - 4, 8, 8);
+        
+        int midX = r.left() + r.width() / 2;
+        int midY = r.top() + r.height() / 2;
+        painter.drawRect(midX - 4, r.top() - 4, 8, 8);
+        painter.drawRect(midX - 4, r.bottom() - 4, 8, 8);
+        painter.drawRect(r.left() - 4, midY - 4, 8, 8);
+        painter.drawRect(r.right() - 4, midY - 4, 8, 8);
     }
     painter.restore();
 }
@@ -164,6 +171,13 @@ int ShapeAnnotation::hitTestHandle(const QPoint& pos) const {
         if (QRect(r.right() - 6, r.top() - 6, 12, 12).contains(pos)) return 2;
         if (QRect(r.right() - 6, r.bottom() - 6, 12, 12).contains(pos)) return 3;
         if (QRect(r.left() - 6, r.bottom() - 6, 12, 12).contains(pos)) return 4;
+        
+        int midX = r.left() + r.width() / 2;
+        int midY = r.top() + r.height() / 2;
+        if (QRect(midX - 6, r.top() - 6, 12, 12).contains(pos)) return 5;
+        if (QRect(midX - 6, r.bottom() - 6, 12, 12).contains(pos)) return 6;
+        if (QRect(r.left() - 6, midY - 6, 12, 12).contains(pos)) return 7;
+        if (QRect(r.right() - 6, midY - 6, 12, 12).contains(pos)) return 8;
     }
     return -1;
 }
@@ -174,6 +188,10 @@ void ShapeAnnotation::moveHandle(int handleId, const QPoint& newPos) {
     else if (handleId == 2) r.setTopRight(newPos);
     else if (handleId == 3) r.setBottomRight(newPos);
     else if (handleId == 4) r.setBottomLeft(newPos);
+    else if (handleId == 5) r.setTop(newPos.y());
+    else if (handleId == 6) r.setBottom(newPos.y());
+    else if (handleId == 7) r.setLeft(newPos.x());
+    else if (handleId == 8) r.setRight(newPos.x());
     rect = r.normalized();
 }
 
@@ -369,7 +387,22 @@ void TextAnnotation::draw(QPainter& painter, const QPixmap* /*background*/) {
     if (isSelected) {
         painter.setPen(QPen(Qt::white, 1, Qt::DashLine));
         painter.setBrush(Qt::NoBrush);
-        painter.drawRect(textRect.adjusted(-2, -2, 2, 2));
+        QRect r = textRect.adjusted(-2, -2, 2, 2);
+        painter.drawRect(r);
+        
+        painter.setPen(QPen(QColor(0, 168, 255), 1));
+        painter.setBrush(Qt::white);
+        painter.drawRect(r.left() - 4, r.top() - 4, 8, 8);
+        painter.drawRect(r.right() - 4, r.top() - 4, 8, 8);
+        painter.drawRect(r.left() - 4, r.bottom() - 4, 8, 8);
+        painter.drawRect(r.right() - 4, r.bottom() - 4, 8, 8);
+        
+        int midX = r.left() + r.width() / 2;
+        int midY = r.top() + r.height() / 2;
+        painter.drawRect(midX - 4, r.top() - 4, 8, 8);
+        painter.drawRect(midX - 4, r.bottom() - 4, 8, 8);
+        painter.drawRect(r.left() - 4, midY - 4, 8, 8);
+        painter.drawRect(r.right() - 4, midY - 4, 8, 8);
     }
     painter.restore();
 }
@@ -522,13 +555,59 @@ void ShaderAnnotation::draw(QPainter& painter, const QPixmap* background) {
     if (isSelected) {
         painter.setPen(QPen(Qt::white, 1, Qt::DashLine));
         painter.setBrush(Qt::NoBrush);
-        painter.drawRect(targetRect.adjusted(-2, -2, 2, 2));
+        QRect r = targetRect.adjusted(-2, -2, 2, 2);
+        painter.drawRect(r);
+        
+        painter.setPen(QPen(QColor(0, 168, 255), 1));
+        painter.setBrush(Qt::white);
+        painter.drawRect(r.left() - 4, r.top() - 4, 8, 8);
+        painter.drawRect(r.right() - 4, r.top() - 4, 8, 8);
+        painter.drawRect(r.left() - 4, r.bottom() - 4, 8, 8);
+        painter.drawRect(r.right() - 4, r.bottom() - 4, 8, 8);
+        
+        int midX = r.left() + r.width() / 2;
+        int midY = r.top() + r.height() / 2;
+        painter.drawRect(midX - 4, r.top() - 4, 8, 8);
+        painter.drawRect(midX - 4, r.bottom() - 4, 8, 8);
+        painter.drawRect(r.left() - 4, midY - 4, 8, 8);
+        painter.drawRect(r.right() - 4, midY - 4, 8, 8);
     }
     painter.restore();
 }
 
 bool ShaderAnnotation::contains(const QPoint& pos) const {
     return rect.contains(pos);
+}
+
+int ShaderAnnotation::hitTestHandle(const QPoint& pos) const {
+    if (isSelected) {
+        QRect r = rect.normalized();
+        if (QRect(r.left() - 6, r.top() - 6, 12, 12).contains(pos)) return 1;
+        if (QRect(r.right() - 6, r.top() - 6, 12, 12).contains(pos)) return 2;
+        if (QRect(r.right() - 6, r.bottom() - 6, 12, 12).contains(pos)) return 3;
+        if (QRect(r.left() - 6, r.bottom() - 6, 12, 12).contains(pos)) return 4;
+        
+        int midX = r.left() + r.width() / 2;
+        int midY = r.top() + r.height() / 2;
+        if (QRect(midX - 6, r.top() - 6, 12, 12).contains(pos)) return 5;
+        if (QRect(midX - 6, r.bottom() - 6, 12, 12).contains(pos)) return 6;
+        if (QRect(r.left() - 6, midY - 6, 12, 12).contains(pos)) return 7;
+        if (QRect(r.right() - 6, midY - 6, 12, 12).contains(pos)) return 8;
+    }
+    return -1;
+}
+
+void ShaderAnnotation::moveHandle(int handleId, const QPoint& newPos) {
+    QRect r = rect.normalized();
+    if (handleId == 1) r.setTopLeft(newPos);
+    else if (handleId == 2) r.setTopRight(newPos);
+    else if (handleId == 3) r.setBottomRight(newPos);
+    else if (handleId == 4) r.setBottomLeft(newPos);
+    else if (handleId == 5) r.setTop(newPos.y());
+    else if (handleId == 6) r.setBottom(newPos.y());
+    else if (handleId == 7) r.setLeft(newPos.x());
+    else if (handleId == 8) r.setRight(newPos.x());
+    rect = r.normalized();
 }
 
 void ShaderAnnotation::moveBy(const QPoint& delta) {
@@ -564,13 +643,59 @@ void HighlightAnnotation::draw(QPainter& painter, const QPixmap* /*background*/)
     if (isSelected) {
         painter.setPen(QPen(Qt::white, 1, Qt::DashLine));
         painter.setBrush(Qt::NoBrush);
-        painter.drawRect(rect.adjusted(-2, -2, 2, 2));
+        QRect r = rect.adjusted(-2, -2, 2, 2);
+        painter.drawRect(r);
+        
+        painter.setPen(QPen(QColor(0, 168, 255), 1));
+        painter.setBrush(Qt::white);
+        painter.drawRect(r.left() - 4, r.top() - 4, 8, 8);
+        painter.drawRect(r.right() - 4, r.top() - 4, 8, 8);
+        painter.drawRect(r.left() - 4, r.bottom() - 4, 8, 8);
+        painter.drawRect(r.right() - 4, r.bottom() - 4, 8, 8);
+        
+        int midX = r.left() + r.width() / 2;
+        int midY = r.top() + r.height() / 2;
+        painter.drawRect(midX - 4, r.top() - 4, 8, 8);
+        painter.drawRect(midX - 4, r.bottom() - 4, 8, 8);
+        painter.drawRect(r.left() - 4, midY - 4, 8, 8);
+        painter.drawRect(r.right() - 4, midY - 4, 8, 8);
     }
     painter.restore();
 }
 
 bool HighlightAnnotation::contains(const QPoint& pos) const {
     return rect.contains(pos);
+}
+
+int HighlightAnnotation::hitTestHandle(const QPoint& pos) const {
+    if (isSelected) {
+        QRect r = rect.normalized();
+        if (QRect(r.left() - 6, r.top() - 6, 12, 12).contains(pos)) return 1;
+        if (QRect(r.right() - 6, r.top() - 6, 12, 12).contains(pos)) return 2;
+        if (QRect(r.right() - 6, r.bottom() - 6, 12, 12).contains(pos)) return 3;
+        if (QRect(r.left() - 6, r.bottom() - 6, 12, 12).contains(pos)) return 4;
+        
+        int midX = r.left() + r.width() / 2;
+        int midY = r.top() + r.height() / 2;
+        if (QRect(midX - 6, r.top() - 6, 12, 12).contains(pos)) return 5;
+        if (QRect(midX - 6, r.bottom() - 6, 12, 12).contains(pos)) return 6;
+        if (QRect(r.left() - 6, midY - 6, 12, 12).contains(pos)) return 7;
+        if (QRect(r.right() - 6, midY - 6, 12, 12).contains(pos)) return 8;
+    }
+    return -1;
+}
+
+void HighlightAnnotation::moveHandle(int handleId, const QPoint& newPos) {
+    QRect r = rect.normalized();
+    if (handleId == 1) r.setTopLeft(newPos);
+    else if (handleId == 2) r.setTopRight(newPos);
+    else if (handleId == 3) r.setBottomRight(newPos);
+    else if (handleId == 4) r.setBottomLeft(newPos);
+    else if (handleId == 5) r.setTop(newPos.y());
+    else if (handleId == 6) r.setBottom(newPos.y());
+    else if (handleId == 7) r.setLeft(newPos.x());
+    else if (handleId == 8) r.setRight(newPos.x());
+    rect = r.normalized();
 }
 
 void HighlightAnnotation::moveBy(const QPoint& delta) {
@@ -735,6 +860,48 @@ std::shared_ptr<AnnotationItem> AnnotationItem::fromJson(const QJsonObject& json
         return hl;
     }
     return nullptr;
+}
+
+} // namespace ScreenCut
+
+
+namespace ScreenCut {
+
+QRect ArrowAnnotation::boundingRect() const {
+    return QRect(startPoint, endPoint).normalized().adjusted(-10, -10, 10, 10);
+}
+
+QRect ShapeAnnotation::boundingRect() const {
+    return rect.normalized().adjusted(-10, -10, 10, 10);
+}
+
+QRect FreehandAnnotation::boundingRect() const {
+    if (points.empty()) return QRect();
+    int minX = points.front().x(), minY = points.front().y();
+    int maxX = minX, maxY = minY;
+    for (const QPoint& p : points) {
+        if (p.x() < minX) minX = p.x();
+        if (p.y() < minY) minY = p.y();
+        if (p.x() > maxX) maxX = p.x();
+        if (p.y() > maxY) maxY = p.y();
+    }
+    return QRect(QPoint(minX, minY), QPoint(maxX, maxY)).adjusted(-10, -10, 10, 10);
+}
+
+QRect TextAnnotation::boundingRect() const {
+    return QRect(position.x(), position.y(), 200, 100); 
+}
+
+QRect StepMarkerAnnotation::boundingRect() const {
+    return QRect(center.x() - 20, center.y() - 20, 40, 40);
+}
+
+QRect ShaderAnnotation::boundingRect() const {
+    return rect.normalized();
+}
+
+QRect HighlightAnnotation::boundingRect() const {
+    return rect.normalized();
 }
 
 } // namespace ScreenCut

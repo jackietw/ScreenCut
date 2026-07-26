@@ -15,6 +15,8 @@
 #include <QColorDialog>
 #include <QMenu>
 #include <QWidgetAction>
+#include <QScrollArea>
+#include "../resources/IconUtils.h"
 
 namespace ScreenCut {
 
@@ -34,9 +36,25 @@ void EditorPropsPanel::setupUI() {
         QPushButton:hover { background: #444444; border-color: #246bb2; }
     )");
 
-    m_mainLayout = new QVBoxLayout(this);
+    QVBoxLayout* outerLayout = new QVBoxLayout(this);
+    outerLayout->setContentsMargins(0, 0, 0, 0);
+    
+    QScrollArea* scrollArea = new QScrollArea(this);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    // ensure scrollarea transparent so widget style applies
+    scrollArea->setStyleSheet("QScrollArea { background-color: transparent; } QWidget#PropContainer { background-color: transparent; }");
+    
+    QWidget* container = new QWidget();
+    container->setObjectName("PropContainer");
+    m_mainLayout = new QVBoxLayout(container);
     m_mainLayout->setContentsMargins(15, 20, 15, 20);
     m_mainLayout->setSpacing(15);
+    
+    scrollArea->setWidget(container);
+    outerLayout->addWidget(scrollArea);
 
     m_toolNameLabel = new QLabel("Properties", this);
     m_toolNameLabel->setStyleSheet("font-size: 16px; color: #246bb2; border-bottom: 1px solid #3c3c3c; padding-bottom: 8px;");
@@ -299,9 +317,7 @@ void EditorPropsPanel::createTextProps() {
     // Font Family & Style
     m_fontFamilyCombo = new QFontComboBox();
     mainLayout->addWidget(m_fontFamilyCombo);
-    m_fontStyleCombo = new QComboBox();
-    m_fontStyleCombo->addItems({"Regular", "Bold", "Italic", "Bold Italic"});
-    mainLayout->addWidget(m_fontStyleCombo);
+
 
     // Font Size
     QHBoxLayout* fontSizeLayout = new QHBoxLayout();
@@ -331,40 +347,51 @@ void EditorPropsPanel::createTextProps() {
     advLayout->setContentsMargins(0, 0, 0, 0);
     advLayout->setSpacing(6);
 
-    // Formatting & Alignment Buttons
-    QHBoxLayout* fmtLayout = new QHBoxLayout();
-    fmtLayout->setSpacing(4);
+    // Alignment Buttons (Row 1)
+    QHBoxLayout* alignLayout = new QHBoxLayout();
+    alignLayout->setSpacing(4);
     
-    auto createToolBtn = [](const QString& text, bool checkable = true) {
-        QPushButton* btn = new QPushButton(text);
+    auto createSvgToolBtn = [](const QString& svgString, bool checkable = true) {
+        QPushButton* btn = new QPushButton();
         btn->setFixedSize(30, 30);
         btn->setCheckable(checkable);
+        btn->setIcon(createSvgIcon(svgString, 18, 18));
         btn->setStyleSheet("QPushButton:checked { background-color: #bfdbfe; border: 1px solid #3b82f6; }");
         return btn;
     };
+    
+    m_btnAlignLeft = createSvgToolBtn(SVG_ALIGN_LEFT);
+    m_btnAlignCenter = createSvgToolBtn(SVG_ALIGN_CENTER);
+    m_btnAlignRight = createSvgToolBtn(SVG_ALIGN_RIGHT);
+    alignLayout->addWidget(m_btnAlignLeft);
+    alignLayout->addWidget(m_btnAlignCenter);
+    alignLayout->addWidget(m_btnAlignRight);
+    alignLayout->addSpacing(10);
+    
+    m_btnAlignTop = createSvgToolBtn(SVG_ALIGN_TOP);
+    m_btnAlignMiddle = createSvgToolBtn(SVG_ALIGN_MIDDLE);
+    m_btnAlignBottom = createSvgToolBtn(SVG_ALIGN_BOTTOM);
+    alignLayout->addWidget(m_btnAlignTop);
+    alignLayout->addWidget(m_btnAlignMiddle);
+    alignLayout->addWidget(m_btnAlignBottom);
+    
+    advLayout->addLayout(alignLayout);
 
-    m_btnUnderline = createToolBtn("U");
-    m_btnStrikeOut = createToolBtn("S");
-    fmtLayout->addWidget(m_btnUnderline);
-    fmtLayout->addWidget(m_btnStrikeOut);
-    fmtLayout->addSpacing(10);
+    // Style Buttons (Row 2)
+    QHBoxLayout* styleLayout = new QHBoxLayout();
+    styleLayout->setSpacing(4);
     
-    m_btnAlignLeft = createToolBtn("L");
-    m_btnAlignCenter = createToolBtn("C");
-    m_btnAlignRight = createToolBtn("R");
-    fmtLayout->addWidget(m_btnAlignLeft);
-    fmtLayout->addWidget(m_btnAlignCenter);
-    fmtLayout->addWidget(m_btnAlignRight);
-    fmtLayout->addSpacing(10);
+    m_btnBold = createSvgToolBtn(SVG_FONT_BOLD);
+    m_btnItalic = createSvgToolBtn(SVG_FONT_ITALIC);
+    m_btnUnderline = createSvgToolBtn(SVG_FONT_UNDERLINE);
+    m_btnStrikeOut = createSvgToolBtn(SVG_FONT_STRIKEOUT);
+    styleLayout->addWidget(m_btnBold);
+    styleLayout->addWidget(m_btnItalic);
+    styleLayout->addWidget(m_btnUnderline);
+    styleLayout->addWidget(m_btnStrikeOut);
+    styleLayout->addStretch();
     
-    m_btnAlignTop = createToolBtn("T");
-    m_btnAlignMiddle = createToolBtn("M");
-    m_btnAlignBottom = createToolBtn("B");
-    fmtLayout->addWidget(m_btnAlignTop);
-    fmtLayout->addWidget(m_btnAlignMiddle);
-    fmtLayout->addWidget(m_btnAlignBottom);
-    
-    advLayout->addLayout(fmtLayout);
+    advLayout->addLayout(styleLayout);
 
     // Opacity
     QHBoxLayout* opacityLayout = new QHBoxLayout();
@@ -396,10 +423,8 @@ void EditorPropsPanel::createTextProps() {
     // --- SIGNAL CONNECTIONS ---
     connect(m_fontFamilyCombo, &QFontComboBox::currentFontChanged, this, [this](const QFont& f){ emit fontFamilyChanged(f.family()); });
     
-    connect(m_fontStyleCombo, &QComboBox::currentIndexChanged, this, [this](int idx){
-        emit textIsBoldChanged(idx == 1 || idx == 3);
-        emit textIsItalicChanged(idx == 2 || idx == 3);
-    });
+    connect(m_btnBold, &QPushButton::toggled, this, &EditorPropsPanel::textIsBoldChanged);
+    connect(m_btnItalic, &QPushButton::toggled, this, &EditorPropsPanel::textIsItalicChanged);
 
     connect(m_fontSizeSlider, &QSlider::valueChanged, this, [this](int val){
         m_fontSizeLabel->setText(QString("%1 pt").arg(val));
@@ -693,11 +718,12 @@ void EditorPropsPanel::syncFromSelection(const std::shared_ptr<AnnotationItem>& 
     
     // Text UI blocks
     if (m_fontFamilyCombo) m_fontFamilyCombo->blockSignals(true);
-    if (m_fontStyleCombo) m_fontStyleCombo->blockSignals(true);
     if (m_fontSizeSlider) m_fontSizeSlider->blockSignals(true);
     if (m_textLineWidthSlider) m_textLineWidthSlider->blockSignals(true);
     if (m_opacitySlider) m_opacitySlider->blockSignals(true);
     if (m_spacingSlider) m_spacingSlider->blockSignals(true);
+    if (m_btnBold) m_btnBold->blockSignals(true);
+    if (m_btnItalic) m_btnItalic->blockSignals(true);
     if (m_btnUnderline) m_btnUnderline->blockSignals(true);
     if (m_btnStrikeOut) m_btnStrikeOut->blockSignals(true);
     
@@ -711,13 +737,8 @@ void EditorPropsPanel::syncFromSelection(const std::shared_ptr<AnnotationItem>& 
         auto txt = std::static_pointer_cast<TextAnnotation>(item);
         if (m_fontFamilyCombo) m_fontFamilyCombo->setCurrentFont(QFont(txt->fontFamily));
         
-        if (m_fontStyleCombo) {
-            int styleIdx = 0; // Regular
-            if (txt->isBold && txt->isItalic) styleIdx = 3;
-            else if (txt->isItalic) styleIdx = 2;
-            else if (txt->isBold) styleIdx = 1;
-            m_fontStyleCombo->setCurrentIndex(styleIdx);
-        }
+        if (m_btnBold) m_btnBold->setChecked(txt->isBold);
+        if (m_btnItalic) m_btnItalic->setChecked(txt->isItalic);
         
         if (m_fontSizeSlider) {
             m_fontSizeSlider->setValue(txt->fontSize);
@@ -783,13 +804,23 @@ void EditorPropsPanel::syncFromSelection(const std::shared_ptr<AnnotationItem>& 
     m_penStyleCombo->blockSignals(false);
     
     if (m_fontFamilyCombo) m_fontFamilyCombo->blockSignals(false);
-    if (m_fontStyleCombo) m_fontStyleCombo->blockSignals(false);
+    if (m_btnBold) m_btnBold->blockSignals(false);
+    if (m_btnItalic) m_btnItalic->blockSignals(false);
     if (m_fontSizeSlider) m_fontSizeSlider->blockSignals(false);
     if (m_textLineWidthSlider) m_textLineWidthSlider->blockSignals(false);
     if (m_opacitySlider) m_opacitySlider->blockSignals(false);
     if (m_spacingSlider) m_spacingSlider->blockSignals(false);
     if (m_btnUnderline) m_btnUnderline->blockSignals(false);
     if (m_btnStrikeOut) m_btnStrikeOut->blockSignals(false);
+}
+
+void EditorPropsPanel::updateFontSizeUI(int size) {
+    if (m_fontSizeSlider) {
+        m_fontSizeSlider->blockSignals(true);
+        m_fontSizeSlider->setValue(size);
+        if (m_fontSizeLabel) m_fontSizeLabel->setText(QString("%1 pt").arg(size));
+        m_fontSizeSlider->blockSignals(false);
+    }
 }
 
 void EditorPropsPanel::syncFromSelection(const QColor& color, int width) {

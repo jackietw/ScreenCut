@@ -9,6 +9,8 @@
 #include <QMessageBox>
 #include <QCommandLineParser>
 #include <QCommandLineOption>
+#include <QDir>
+#include <QDateTime>
 #include <cstdio>
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -16,7 +18,7 @@
 #include "editor_window.h"
 #include "../version.h"
 #include "../config.h"
-#include "../resources/IconUtils.h"
+#include "../core/common_project.h"
 #include <QFontDatabase>
 #include <QFont>
 
@@ -79,6 +81,22 @@ int main(int argc, char *argv[]) {
         if (!editor->loadImageFile(filePath)) {
             QMessageBox::warning(nullptr, "ScreenCut Editor", 
                                  QString("Failed to load image file:\n%1").arg(filePath));
+        }
+    } else {
+        QDir dir(ScutProject::getLibraryDir());
+        QStringList filters;
+        filters << "*.scut";
+        dir.setNameFilters(filters);
+        dir.setFilter(QDir::Files | QDir::NoSymLinks);
+        dir.setSorting(QDir::Time);
+        QFileInfoList list = dir.entryInfoList();
+        if (!list.isEmpty()) {
+            QString filePath = list.first().absoluteFilePath();
+            qDebug() << "Opening most recent file:" << filePath;
+            if (!editor->loadImageFile(filePath)) {
+                QMessageBox::warning(nullptr, "ScreenCut Editor", 
+                                     QString("Failed to load recent image file:\n%1").arg(filePath));
+            }
         }
     }
 

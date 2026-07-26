@@ -55,10 +55,13 @@ public:
     void setPenStyle(const QString& style);
     void resetStepCounter();
 
-    bool canUndo() const { return !m_annotations.empty(); }
+    bool canUndo() const { return !m_undoStack.empty(); }
     bool canRedo() const { return !m_redoStack.empty(); }
     void undo();
     void redo();
+    void saveToHistory();
+    void updateAutoCanvasSize();
+    int hitTestCanvasHandle(const QPoint& pos) const;
 
     QPixmap renderFinalPixmap();
     QJsonArray saveAnnotationsJson() const;
@@ -76,6 +79,7 @@ signals:
     void mousePositionChanged(const QPoint& pos);
     void zoomChanged(qreal zoom);
     void itemSelected(std::shared_ptr<AnnotationItem> item);
+    void fontSizeChanged(int size);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -121,13 +125,28 @@ private:
     int m_blurIntensity = 15;
     QString m_penStyle = "Solid Pen";
 
+    struct HistoryState {
+        QPixmap background;
+        QRect baseCanvasRect;
+        std::vector<std::shared_ptr<AnnotationItem>> annotations;
+    };
+    
     std::vector<std::shared_ptr<AnnotationItem>> m_annotations;
-    std::vector<std::shared_ptr<AnnotationItem>> m_redoStack;
+    std::vector<HistoryState> m_undoStack;
+    std::vector<HistoryState> m_redoStack;
 
     bool m_isDrawing = false;
     bool m_isDragging = false;
+    bool m_isCanvasResizing = false;
     int m_activeHandle = -1;
+    int m_canvasActiveHandle = -1;
     QPoint m_startPoint;
+    QPoint m_startGlobalPos;
+    
+    QRect m_baseCanvasRect;
+    QPixmap m_dragBackgroundOriginal;
+    std::vector<std::shared_ptr<AnnotationItem>> m_dragAnnotationsOriginal;
+    QRect m_dragOriginalRect;
     QPoint m_currentPoint;
     QPoint m_lastDragPoint;
     std::shared_ptr<AnnotationItem> m_tempItem;

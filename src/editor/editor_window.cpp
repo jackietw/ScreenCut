@@ -145,6 +145,7 @@ void EditorMainWindow::initUI() {
     });
 
     connect(m_canvas, &EditorCanvas::itemSelected, m_propsPanel, static_cast<void(EditorPropsPanel::*)(const std::shared_ptr<AnnotationItem>&)>(&EditorPropsPanel::syncFromSelection));
+    connect(m_canvas, &EditorCanvas::fontSizeChanged, m_propsPanel, &EditorPropsPanel::updateFontSizeUI);
 
     // Dynamic properties connections
     connect(m_propsPanel, &EditorPropsPanel::arrowTypeChanged, m_canvas, &EditorCanvas::setArrowType);

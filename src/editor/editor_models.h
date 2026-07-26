@@ -52,6 +52,7 @@ public:
     virtual void draw(QPainter& painter, const QPixmap* background = nullptr) = 0;
     virtual bool contains(const QPoint& pos) const = 0;
     virtual void moveBy(const QPoint& delta) = 0;
+    virtual QRect boundingRect() const = 0;
     virtual int hitTestHandle(const QPoint& /*pos*/) const { return -1; }
     virtual void moveHandle(int /*handleId*/, const QPoint& /*newPos*/) {}
     virtual std::shared_ptr<AnnotationItem> clone() const = 0;
@@ -71,6 +72,7 @@ public:
     void draw(QPainter& painter, const QPixmap* background = nullptr) override;
     bool contains(const QPoint& pos) const override;
     void moveBy(const QPoint& delta) override;
+    QRect boundingRect() const override;
     int hitTestHandle(const QPoint& pos) const override;
     void moveHandle(int handleId, const QPoint& newPos) override;
     std::shared_ptr<AnnotationItem> clone() const override;
@@ -89,6 +91,7 @@ public:
     void draw(QPainter& painter, const QPixmap* background = nullptr) override;
     bool contains(const QPoint& pos) const override;
     void moveBy(const QPoint& delta) override;
+    QRect boundingRect() const override;
     int hitTestHandle(const QPoint& pos) const override;
     void moveHandle(int handleId, const QPoint& newPos) override;
     std::shared_ptr<AnnotationItem> clone() const override;
@@ -111,6 +114,7 @@ public:
     void draw(QPainter& painter, const QPixmap* background = nullptr) override;
     bool contains(const QPoint& pos) const override;
     void moveBy(const QPoint& delta) override;
+    QRect boundingRect() const override;
     std::shared_ptr<AnnotationItem> clone() const override;
     QJsonObject toJson() const override;
 
@@ -130,6 +134,7 @@ public:
     void draw(QPainter& painter, const QPixmap* background = nullptr) override;
     bool contains(const QPoint& pos) const override;
     void moveBy(const QPoint& delta) override;
+    QRect boundingRect() const override;
     std::shared_ptr<AnnotationItem> clone() const override;
     QJsonObject toJson() const override;
 
@@ -164,6 +169,7 @@ public:
     void draw(QPainter& painter, const QPixmap* background = nullptr) override;
     bool contains(const QPoint& pos) const override;
     void moveBy(const QPoint& delta) override;
+    QRect boundingRect() const override;
     std::shared_ptr<AnnotationItem> clone() const override;
     QJsonObject toJson() const override;
 
@@ -180,6 +186,9 @@ public:
     void draw(QPainter& painter, const QPixmap* background = nullptr) override;
     bool contains(const QPoint& pos) const override;
     void moveBy(const QPoint& delta) override;
+    QRect boundingRect() const override;
+    int hitTestHandle(const QPoint& pos) const override;
+    void moveHandle(int handleId, const QPoint& newPos) override;
     std::shared_ptr<AnnotationItem> clone() const override;
     QJsonObject toJson() const override;
 
@@ -197,6 +206,9 @@ public:
     void draw(QPainter& painter, const QPixmap* background = nullptr) override;
     bool contains(const QPoint& pos) const override;
     void moveBy(const QPoint& delta) override;
+    QRect boundingRect() const override;
+    int hitTestHandle(const QPoint& pos) const override;
+    void moveHandle(int handleId, const QPoint& newPos) override;
     std::shared_ptr<AnnotationItem> clone() const override;
     QJsonObject toJson() const override;
 

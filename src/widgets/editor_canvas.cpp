@@ -34,8 +34,10 @@ EditorCanvas::~EditorCanvas() = default;
 
 void EditorCanvas::setBackground(const QPixmap& background) {
     m_background = background;
+    m_baseCanvasRect = m_background.rect();
     setZoom(m_zoomFactor); // re-apply size
     m_annotations.clear();
+    m_undoStack.clear();
     m_redoStack.clear();
     update();
     emit historyChanged();
@@ -244,10 +246,36 @@ void EditorCanvas::resetStepCounter() {
     m_nextStepNumber = 1;
 }
 
+void EditorCanvas::saveToHistory() {
+    HistoryState state;
+    state.background = m_background;
+    state.baseCanvasRect = m_baseCanvasRect;
+    for (const auto& item : m_annotations) {
+        state.annotations.push_back(item->clone());
+    }
+    m_undoStack.push_back(state);
+    m_redoStack.clear();
+}
+
 void EditorCanvas::undo() {
-    if (!m_annotations.empty()) {
-        m_redoStack.push_back(m_annotations.back());
-        m_annotations.pop_back();
+    if (!m_undoStack.empty()) {
+        HistoryState currentState;
+        currentState.background = m_background;
+        currentState.baseCanvasRect = m_baseCanvasRect;
+        for (const auto& item : m_annotations) {
+            currentState.annotations.push_back(item->clone());
+        }
+        m_redoStack.push_back(currentState);
+
+        HistoryState state = m_undoStack.back();
+        m_undoStack.pop_back();
+        m_background = state.background;
+        m_baseCanvasRect = state.baseCanvasRect;
+        m_annotations = state.annotations;
+        setZoom(m_zoomFactor);
+        
+        m_selectedItem = nullptr;
+        m_activeHandle = -1;
         update();
         emit historyChanged();
     }
@@ -255,8 +283,23 @@ void EditorCanvas::undo() {
 
 void EditorCanvas::redo() {
     if (!m_redoStack.empty()) {
-        m_annotations.push_back(m_redoStack.back());
+        HistoryState currentState;
+        currentState.background = m_background;
+        currentState.baseCanvasRect = m_baseCanvasRect;
+        for (const auto& item : m_annotations) {
+            currentState.annotations.push_back(item->clone());
+        }
+        m_undoStack.push_back(currentState);
+
+        HistoryState state = m_redoStack.back();
         m_redoStack.pop_back();
+        m_background = state.background;
+        m_baseCanvasRect = state.baseCanvasRect;
+        m_annotations = state.annotations;
+        setZoom(m_zoomFactor);
+
+        m_selectedItem = nullptr;
+        m_activeHandle = -1;
         update();
         emit historyChanged();
     }
@@ -282,6 +325,18 @@ void EditorCanvas::paintEvent(QPaintEvent* /*event*/) {
     
     painter.scale(m_zoomFactor, m_zoomFactor);
 
+    // Draw checkerboard for transparent areas
+    static QPixmap checkerboard;
+    if (checkerboard.isNull()) {
+        checkerboard = QPixmap(20, 20);
+        checkerboard.fill(QColor(230, 230, 230)); // light grey
+        QPainter cbPainter(&checkerboard);
+        cbPainter.fillRect(0, 0, 10, 10, Qt::white);
+        cbPainter.fillRect(10, 10, 10, 10, Qt::white);
+        cbPainter.end();
+    }
+    painter.fillRect(m_background.rect(), QBrush(checkerboard));
+
     // Draw background snapshot
     painter.drawPixmap(0, 0, m_background);
 
@@ -291,8 +346,36 @@ void EditorCanvas::paintEvent(QPaintEvent* /*event*/) {
     }
 
     // Draw temporary drawing item
-    if (m_isDrawing && m_tempItem) {
-        m_tempItem->draw(painter, &m_background);
+    if (m_isDrawing) {
+        if (m_tempItem) {
+            m_tempItem->draw(painter, &m_background);
+        } else if (m_currentTool == ToolType::Text) {
+            QRect rect(m_startPoint, m_currentPoint);
+            rect = rect.normalized();
+            QPen pen(m_currentColor, 1, Qt::DashLine);
+            painter.setPen(pen);
+            painter.setBrush(QBrush(QColor(m_currentColor.red(), m_currentColor.green(), m_currentColor.blue(), 30)));
+            painter.drawRect(rect);
+        }
+    }
+
+    // Draw canvas handles in all modes (except while actively drawing)
+    if (!m_isDrawing && !m_background.isNull()) {
+        painter.setPen(QPen(QColor(0, 168, 255), 1));
+        painter.setBrush(Qt::white);
+        QRect r = m_background.rect();
+        
+        painter.drawRect(0, 0, 8, 8);
+        painter.drawRect(r.right() - 8, 0, 8, 8);
+        painter.drawRect(0, r.bottom() - 8, 8, 8);
+        painter.drawRect(r.right() - 8, r.bottom() - 8, 8, 8);
+        
+        int midX = r.width() / 2;
+        int midY = r.height() / 2;
+        painter.drawRect(midX - 4, 0, 8, 8);
+        painter.drawRect(midX - 4, r.bottom() - 8, 8, 8);
+        painter.drawRect(0, midY - 4, 8, 8);
+        painter.drawRect(r.right() - 8, midY - 4, 8, 8);
     }
 }
 
@@ -327,6 +410,7 @@ void EditorCanvas::commitText() {
             if (it != m_annotations.end()) {
                 m_annotations.erase(it);
                 m_selectedItem = nullptr;
+                updateAutoCanvasSize();
                 emit historyChanged();
             }
         }
@@ -370,14 +454,63 @@ void EditorCanvas::commitText() {
         txtItem->hasShadow = m_textHasShadow;
         txtItem->shadowDirection = m_textShadowDirection;
         txtItem->outlineWidth = m_textOutlineWidth;
+        saveToHistory();
         m_annotations.push_back(txtItem);
         m_selectedItem = txtItem;
-        m_redoStack.clear();
     }
     
     m_editingTextObj = nullptr;
+    updateAutoCanvasSize();
     update();
     emit historyChanged();
+}
+
+void EditorCanvas::updateAutoCanvasSize() {
+    if (m_background.isNull()) return;
+
+    QRect neededRect = m_baseCanvasRect;
+    for (const auto& item : m_annotations) {
+        QRect itemRect = item->boundingRect();
+        itemRect.adjust(-4, -4, 4, 4); 
+        neededRect = neededRect.united(itemRect);
+    }
+
+    if (neededRect == QRect(0, 0, m_background.width(), m_background.height())) {
+        return;
+    }
+
+    QPixmap newBg(neededRect.size());
+    newBg.fill(Qt::transparent);
+    QPainter p(&newBg);
+    p.setCompositionMode(QPainter::CompositionMode_Source);
+    p.drawPixmap(-neededRect.topLeft(), m_background);
+    p.end();
+
+    m_background = newBg;
+    m_baseCanvasRect.translate(-neededRect.topLeft());
+
+    for (auto& item : m_annotations) {
+        item->moveBy(-neededRect.topLeft());
+    }
+
+    setZoom(m_zoomFactor);
+    update();
+}
+
+int EditorCanvas::hitTestCanvasHandle(const QPoint& pos) const {
+    if (m_background.isNull()) return -1;
+    QRect r = m_background.rect();
+    int midX = r.width() / 2;
+    int midY = r.height() / 2;
+    if (QRect(0, 0, 12, 12).contains(pos)) return 1;
+    if (QRect(r.right() - 12, 0, 12, 12).contains(pos)) return 2;
+    if (QRect(r.right() - 12, r.bottom() - 12, 12, 12).contains(pos)) return 3;
+    if (QRect(0, r.bottom() - 12, 12, 12).contains(pos)) return 4;
+    if (QRect(midX - 6, 0, 12, 12).contains(pos)) return 5;
+    if (QRect(midX - 6, r.bottom() - 12, 12, 12).contains(pos)) return 6;
+    if (QRect(0, midY - 6, 12, 12).contains(pos)) return 7;
+    if (QRect(r.right() - 12, midY - 6, 12, 12).contains(pos)) return 8;
+    return -1;
 }
 
 bool EditorCanvas::eventFilter(QObject* obj, QEvent* event) {
@@ -404,15 +537,43 @@ void EditorCanvas::mousePressEvent(QMouseEvent* event) {
     m_startPoint = mapToImage(event->pos());
     m_currentPoint = m_startPoint;
 
-    if (m_currentTool == ToolType::None) {
-        if (m_selectedItem) {
-            int handle = m_selectedItem->hitTestHandle(m_startPoint);
-            if (handle != -1) {
-                m_activeHandle = handle;
-                return;
-            }
+    // 1. Check annotation handles first if in None tool
+    if (m_currentTool == ToolType::None && m_selectedItem) {
+        int handle = m_selectedItem->hitTestHandle(m_startPoint);
+        if (handle != -1) {
+            m_activeHandle = handle;
+            return;
         }
+    }
 
+    // 2. Check canvas resize handles regardless of tool
+    if (!m_background.isNull()) {
+        int hit = hitTestCanvasHandle(m_startPoint);
+
+        if (hit != -1) {
+            saveToHistory();
+            m_isCanvasResizing = true;
+            m_canvasActiveHandle = hit;
+            m_dragBackgroundOriginal = m_background;
+            m_dragAnnotationsOriginal.clear();
+            for (const auto& item : m_annotations) {
+                m_dragAnnotationsOriginal.push_back(item->clone());
+            }
+            m_dragOriginalRect = m_background.rect();
+            m_startGlobalPos = event->globalPosition().toPoint();
+            // Deselect item if we were in None tool
+            if (m_currentTool == ToolType::None && m_selectedItem) {
+                m_selectedItem->isSelected = false;
+                m_selectedItem = nullptr;
+                emit itemSelected(nullptr);
+            }
+            update();
+            return;
+        }
+    }
+
+    // 3. Normal selection logic for None tool
+    if (m_currentTool == ToolType::None) {
         m_selectedItem = nullptr;
         m_activeHandle = -1;
         for (auto& item : m_annotations) {
@@ -455,29 +616,17 @@ void EditorCanvas::mousePressEvent(QMouseEvent* event) {
         freehand->addPoint(m_startPoint);
         m_tempItem = freehand;
     } else if (m_currentTool == ToolType::StepMarker) {
+        saveToHistory();
         auto step = std::make_shared<StepMarkerAnnotation>(m_startPoint, m_nextStepNumber);
         step->color = m_currentColor;
         step->radius = m_currentLineWidth * 4; // Use line width as size base
         m_annotations.push_back(step);
         m_nextStepNumber++;
-        m_redoStack.clear();
         m_isDrawing = false;
         update();
         emit historyChanged();
     } else if (m_currentTool == ToolType::Text) {
-        m_editingTextObj = nullptr;
-        QFont font(m_fontFamily, qMax(8, static_cast<int>(m_fontSize * m_zoomFactor)), QFont::Bold);
-        m_textInput->setFont(font);
-        m_textInput->setStyleSheet(QString("QTextEdit { color: %1; background: rgba(0,0,0,180); border: 1px dashed %1; padding: 2px; }").arg(m_currentColor.name()));
-        m_textInput->setText("");
-        
-        QPoint screenPos = event->pos();
-        m_textInput->setGeometry(screenPos.x(), screenPos.y(), 100, 40);
-        m_textInput->show();
-        m_textInput->setFocus();
-        resizeTextInput();
-        
-        m_isDrawing = false;
+        // Just let it drag, painted directly in paintEvent
     } else if (m_currentTool == ToolType::Mosaic || m_currentTool == ToolType::Blur) {
         auto shader = std::make_shared<ShaderAnnotation>(m_blurType, QRect(m_startPoint, m_currentPoint));
         shader->intensity = m_blurIntensity;
@@ -493,6 +642,65 @@ void EditorCanvas::mousePressEvent(QMouseEvent* event) {
 void EditorCanvas::mouseMoveEvent(QMouseEvent* event) {
     m_currentPoint = mapToImage(event->pos());
     emit mousePositionChanged(m_currentPoint);
+
+    if (event->buttons() == Qt::NoButton) {
+        int handle = hitTestCanvasHandle(m_currentPoint);
+        if (handle == -1 && m_currentTool == ToolType::None && m_selectedItem) {
+            handle = m_selectedItem->hitTestHandle(m_currentPoint);
+        }
+        
+        if (handle != -1) {
+            if (handle == 1 || handle == 3) setCursor(Qt::SizeFDiagCursor); // Top-Left, Bottom-Right
+            else if (handle == 2 || handle == 4) setCursor(Qt::SizeBDiagCursor); // Top-Right, Bottom-Left
+            else if (handle == 5 || handle == 6) setCursor(Qt::SizeVerCursor); // Top, Bottom
+            else if (handle == 7 || handle == 8) setCursor(Qt::SizeHorCursor); // Left, Right
+        } else {
+            if (m_currentTool == ToolType::None) setCursor(Qt::ArrowCursor);
+            else setCursor(Qt::CrossCursor);
+        }
+        return;
+    }
+
+    if (m_isCanvasResizing) {
+        QPoint globalDelta = event->globalPosition().toPoint() - m_startGlobalPos;
+        QPoint delta(globalDelta.x() / m_zoomFactor, globalDelta.y() / m_zoomFactor);
+        
+        QRect r = m_dragOriginalRect;
+        
+        if (m_canvasActiveHandle == 1) r.setTopLeft(r.topLeft() + delta);
+        else if (m_canvasActiveHandle == 2) r.setTopRight(r.topRight() + delta);
+        else if (m_canvasActiveHandle == 3) r.setBottomRight(r.bottomRight() + delta);
+        else if (m_canvasActiveHandle == 4) r.setBottomLeft(r.bottomLeft() + delta);
+        else if (m_canvasActiveHandle == 5) r.setTop(r.top() + delta.y());
+        else if (m_canvasActiveHandle == 6) r.setBottom(r.bottom() + delta.y());
+        else if (m_canvasActiveHandle == 7) r.setLeft(r.left() + delta.x());
+        else if (m_canvasActiveHandle == 8) r.setRight(r.right() + delta.x());
+        
+        r = r.normalized();
+        if (r.width() < 10) r.setWidth(10);
+        if (r.height() < 10) r.setHeight(10);
+        
+        QPixmap newBg(r.size());
+        newBg.fill(Qt::transparent);
+        QPainter p(&newBg);
+        p.setCompositionMode(QPainter::CompositionMode_Source); // Allow drawing transparent pixels if original had them
+        p.drawPixmap(-r.topLeft(), m_dragBackgroundOriginal);
+        p.end();
+        
+        m_background = newBg;
+        m_baseCanvasRect = QRect(0, 0, newBg.width(), newBg.height());
+        
+        m_annotations.clear();
+        for (const auto& item : m_dragAnnotationsOriginal) {
+            auto clone = item->clone();
+            clone->moveBy(-r.topLeft());
+            m_annotations.push_back(clone);
+        }
+        
+        setZoom(m_zoomFactor);
+        update();
+        return;
+    }
 
     if (m_currentTool == ToolType::None && m_selectedItem) {
         if (m_activeHandle != -1) {
@@ -531,18 +739,66 @@ void EditorCanvas::mouseMoveEvent(QMouseEvent* event) {
 
 void EditorCanvas::mouseReleaseEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
+        if (m_isCanvasResizing) {
+            m_isCanvasResizing = false;
+            m_canvasActiveHandle = -1;
+            updateAutoCanvasSize();
+            emit historyChanged();
+            return;
+        }
+        
         if (m_currentTool == ToolType::None) {
             if (m_isDragging || m_activeHandle != -1) {
                 m_isDragging = false;
                 m_activeHandle = -1;
+                updateAutoCanvasSize();
                 emit historyChanged();
             }
         } else if (m_isDrawing) {
             m_isDrawing = false;
-            if (m_tempItem) {
+            if (m_currentTool == ToolType::Text) {
+                QRect rect = QRect(m_startPoint, m_currentPoint).normalized();
+                
+                int box_w = rect.width();
+                int box_h = rect.height();
+                QPoint topLeft;
+                int size = m_fontSize;
+                
+                if (box_w < 15 || box_h < 15) {
+                    box_w = qMax(static_cast<int>(m_fontSize * 1.5), 250);
+                    box_h = static_cast<int>(m_fontSize * 1.5);
+                    topLeft = m_startPoint;
+                } else {
+                    topLeft = rect.topLeft();
+                    size = qMax(10, qMin(200, static_cast<int>(box_h * 0.75)));
+                    if (size != m_fontSize) {
+                        m_fontSize = size;
+                        emit fontSizeChanged(size);
+                    }
+                }
+                
+                m_startPoint = topLeft; // Ensure commitText uses the correct corner
+                
+                m_editingTextObj = nullptr;
+                QFont font(m_fontFamily, qMax(8, static_cast<int>(size * m_zoomFactor)), QFont::Bold);
+                m_textInput->setFont(font);
+                m_textInput->setStyleSheet(QString("QTextEdit { color: %1; background: rgba(0,0,0,180); border: 1px dashed %1; padding: 2px; }").arg(m_currentColor.name()));
+                m_textInput->setText("");
+                
+                int min_char_w = qMax(16, static_cast<int>(size * 0.5));
+                box_w = qMax(min_char_w, box_w);
+                
+                QPoint screenPos = QPoint(topLeft.x() * m_zoomFactor, topLeft.y() * m_zoomFactor);
+                m_textInput->setGeometry(screenPos.x(), screenPos.y(), qMax(100, static_cast<int>(box_w * m_zoomFactor)), qMax(40, static_cast<int>(box_h * m_zoomFactor)));
+                m_textInput->show();
+                m_textInput->setFocus();
+                
+                update();
+            } else if (m_tempItem) {
+                saveToHistory();
                 m_annotations.push_back(m_tempItem);
                 m_tempItem.reset();
-                m_redoStack.clear();
+                updateAutoCanvasSize();
                 update();
                 emit historyChanged();
             }
@@ -589,6 +845,7 @@ QJsonArray EditorCanvas::saveAnnotationsJson() const {
 
 void EditorCanvas::loadAnnotationsJson(const QJsonArray& arr) {
     m_annotations.clear();
+    m_undoStack.clear();
     m_redoStack.clear();
     for (int i = 0; i < arr.size(); ++i) {
         QJsonObject obj = arr[i].toObject();

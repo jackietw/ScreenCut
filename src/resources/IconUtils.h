@@ -58,6 +58,16 @@ extern const QString SVG_MOSAIC;
 extern const QString SVG_HIGHLIGHT;
 extern const QString SVG_COLOR;
 extern const QString SVG_DROP_DOWN;
+extern const QString SVG_ALIGN_LEFT;
+extern const QString SVG_ALIGN_CENTER;
+extern const QString SVG_ALIGN_RIGHT;
+extern const QString SVG_ALIGN_TOP;
+extern const QString SVG_ALIGN_MIDDLE;
+extern const QString SVG_ALIGN_BOTTOM;
+extern const QString SVG_FONT_BOLD;
+extern const QString SVG_FONT_ITALIC;
+extern const QString SVG_FONT_UNDERLINE;
+extern const QString SVG_FONT_STRIKEOUT;
 
 // Helper function to render SVG string to QIcon
 QIcon createSvgIcon(const QString& svgString, int width = 24, int height = 24);

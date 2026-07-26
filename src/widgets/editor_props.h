@@ -31,6 +31,7 @@ public:
 public slots:
     void syncFromSelection(const std::shared_ptr<AnnotationItem>& item);
     void syncFromSelection(const QColor& color, int width); // Fallback
+    void updateFontSizeUI(int size);
 
 signals:
     void colorChanged(const QColor& color);
@@ -102,7 +103,6 @@ private:
     // Text UI elements
     QWidget* m_textAdvancedWidget = nullptr;
     QFontComboBox* m_fontFamilyCombo = nullptr;
-    QComboBox* m_fontStyleCombo = nullptr;
     QSlider* m_fontSizeSlider = nullptr;
     QLabel* m_fontSizeLabel = nullptr;
     QSlider* m_textLineWidthSlider = nullptr;
