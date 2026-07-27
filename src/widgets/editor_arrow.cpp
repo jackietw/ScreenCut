@@ -4,7 +4,12 @@
  */
 
 #include "editor_arrow.h"
+#include <QPainter>
 #include <QtMath>
+#include <QDebug>
+#include <QGraphicsScene>
+#include <QGraphicsPixmapItem>
+#include <QGraphicsBlurEffect>
 #include <QPolygonF>
 #include <QPainterPath>
 
@@ -48,26 +53,62 @@ void ArrowPainter::draw(QPainter& painter, QPointF start, QPointF end, const Arr
     drawColor.setAlphaF(style.opacity / 100.0);
 
     // Draw shadow if needed
-    if (style.hasShadow && style.shadowDirection != 0) {
-        int sx = 0, sy = 0;
-        int dist = 3;
-        switch (style.shadowDirection) {
-            case 1: sx = -dist; sy = -dist; break; // TopLeft
-            case 2: sx = 0; sy = -dist; break;    // Top
-            case 3: sx = dist; sy = -dist; break;   // TopRight
-            case 4: sx = -dist; sy = 0; break;      // Left
-            case 5: sx = dist; sy = 0; break;       // Right
-            case 6: sx = -dist; sy = dist; break;   // BottomLeft
-            case 7: sx = 0; sy = dist; break;       // Bottom
-            case 8: sx = dist; sy = dist; break;    // BottomRight
-            default: break;
+    if (style.shadow.enabled) {
+        int dist = style.shadow.distance > 0 ? style.shadow.distance : 3;
+        double rad = style.shadow.angle * M_PI / 180.0;
+        int sx = std::round(dist * std::cos(rad));
+        int sy = std::round(dist * std::sin(rad));
+
+        int blurRadius = style.shadow.blur;
+        double pad = style.lineWidth * 3.0 + 30.0 + blurRadius;
+        QRectF rect(start, end);
+        rect = rect.normalized().adjusted(-pad, -pad, pad, pad);
+
+        QSize imgSize = rect.size().toSize();
+        if (imgSize.width() > 0 && imgSize.height() > 0 && imgSize.width() < 4000 && imgSize.height() < 4000) {
+            QImage shadowImg(imgSize, QImage::Format_ARGB32_Premultiplied);
+            shadowImg.fill(Qt::transparent);
+
+            QPainter pImg(&shadowImg);
+            pImg.setRenderHint(QPainter::Antialiasing);
+            pImg.translate(-rect.topLeft());
+
+            QColor shadowColor = style.shadow.color;
+            shadowColor.setAlpha(255); // Opaque to prevent overlapping darkening
+
+            QPen shadowPen(shadowColor, style.lineWidth, style.penStyle, Qt::FlatCap, Qt::RoundJoin);
+            pImg.setPen(shadowPen);
+            pImg.setBrush(shadowColor);
+
+            pImg.drawLine(start, end);
+            drawHead(pImg, start, end, style.startHead, style.lineWidth, style.startSize);
+            drawHead(pImg, end, start, style.endHead, style.lineWidth, style.endSize);
+            pImg.end();
+
+            painter.save();
+            painter.translate(sx, sy);
+            painter.setOpacity(style.shadow.opacity / 100.0);
+
+            if (blurRadius > 0) {
+                QGraphicsScene scene;
+                scene.setSceneRect(QRectF(0, 0, imgSize.width(), imgSize.height()));
+                QGraphicsPixmapItem* item = scene.addPixmap(QPixmap::fromImage(shadowImg));
+                QGraphicsBlurEffect* blur = new QGraphicsBlurEffect;
+                blur->setBlurRadius(blurRadius);
+                item->setGraphicsEffect(blur);
+
+                QImage blurredImg(imgSize, QImage::Format_ARGB32_Premultiplied);
+                blurredImg.fill(Qt::transparent);
+                QPainter pBlur(&blurredImg);
+                scene.render(&pBlur);
+                pBlur.end();
+
+                painter.drawImage(rect.topLeft(), blurredImg);
+            } else {
+                painter.drawImage(rect.topLeft(), shadowImg);
+            }
+            painter.restore();
         }
-        painter.save();
-        QPen shadowPen(QColor(0, 0, 0, 80), style.lineWidth, style.penStyle, Qt::FlatCap, Qt::RoundJoin);
-        painter.setPen(shadowPen);
-        painter.translate(sx, sy);
-        painter.drawLine(start, end);
-        painter.restore();
     }
 
     QPen pen(drawColor, style.lineWidth, style.penStyle, Qt::FlatCap, Qt::RoundJoin);

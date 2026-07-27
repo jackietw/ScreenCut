@@ -5,6 +5,8 @@
 
 #include "editor_props.h"
 #include "editor_arrow.h"
+#include "editor_colorpicker.h"
+#include "editor_shadowpicker.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -17,6 +19,8 @@
 #include <QMenu>
 #include <QWidgetAction>
 #include <QScrollArea>
+#include <QDir>
+#include <QFile>
 #include "../resources/IconUtils.h"
 
 namespace ScreenCut {
@@ -27,7 +31,15 @@ EditorPropsPanel::EditorPropsPanel(QWidget* parent) : QWidget(parent) {
 
 void EditorPropsPanel::setupUI() {
     setFixedWidth(260);
-    setStyleSheet(R"(
+    // Write the down-arrow SVG to a temp file so Qt stylesheet can reference it
+    QString arrowPath = QDir::temp().filePath("screencut_down_arrow.svg");
+    QFile arrowFile(arrowPath);
+    if (arrowFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        arrowFile.write(SVG_DOWN_ARROW.toUtf8());
+        arrowFile.close();
+    }
+
+    setStyleSheet(QString(R"(
         QWidget { background-color: #252525; color: #ffffff; }
         QLabel { color: #dddddd; font-size: 13px; font-weight: bold; }
         QSlider::groove:horizontal { height: 6px; background: #3c3c3c; border-radius: 3px; }
@@ -35,13 +47,13 @@ void EditorPropsPanel::setupUI() {
         QComboBox, QFontComboBox, QSpinBox { background: #333333; border: 1px solid #555555; border-radius: 4px; padding: 4px; color: white; }
         QComboBox::drop-down, QFontComboBox::drop-down { border: none; width: 24px; }
         QComboBox::down-arrow, QFontComboBox::down-arrow { 
-            image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxNicgaGVpZ2h0PScxNicgdmlld0JveD0nMCAwIDE2IDE2Jz48cGF0aCBmaWxsPSd3aGl0ZScgZD0nTTQgNmg4bC00IDV6Jy8+PC9zdmc+");
+            image: url(%1);
             width: 16px;
             height: 16px;
         }
         QPushButton { background: #333333; border: 1px solid #555555; border-radius: 4px; padding: 6px; color: white; font-weight: bold; }
         QPushButton:hover { background: #444444; border-color: #246bb2; }
-    )");
+    )").arg(arrowPath));
 
     QVBoxLayout* outerLayout = new QVBoxLayout(this);
     outerLayout->setContentsMargins(0, 0, 0, 0);
@@ -190,56 +202,16 @@ void EditorPropsPanel::createArrowProps() {
 
     auto pickColor = [this](QPushButton* sourceBtn, const QColor& initial, std::function<void(const QColor&)> onSelected) {
         QMenu* menu = new QMenu(this);
-        QWidget* container = new QWidget();
-        QVBoxLayout* layout = new QVBoxLayout(container);
-        layout->setContentsMargins(8, 8, 8, 8);
-        layout->setSpacing(8);
-
-        // Top: Transparent + Basic Colors
-        QHBoxLayout* topLayout = new QHBoxLayout();
-        topLayout->setSpacing(4);
+        menu->setStyleSheet("QMenu { background: #252525; border: 1px solid #444; border-radius: 8px; }");
         
-        struct Preset { QString name; QColor color; };
-        std::vector<Preset> presets = {
-            {"", Qt::black},
-            {"", Qt::white},
-            {"", QColor("#ef4444")},
-            {"", QColor("#22c55e")},
-            {"", QColor("#3b82f6")},
-            {"", QColor("#eab308")}
-        };
+        EditorColorPicker* picker = new EditorColorPicker(initial, menu);
+        connect(picker, &EditorColorPicker::colorChanged, onSelected);
         
-        for (const auto& p : presets) {
-            QPushButton* b = new QPushButton(p.name);
-            b->setFixedSize(24, 24);
-            QString css = "QPushButton { border: 1px solid #ccc; border-radius: 12px; ";
-            css += QString("background-color: %1; }").arg(p.color.name());
-            b->setStyleSheet(css);
-            connect(b, &QPushButton::clicked, [menu, onSelected, p]() {
-                onSelected(p.color);
-                menu->close();
-            });
-            topLayout->addWidget(b);
-        }
-        topLayout->addStretch();
-        layout->addLayout(topLayout);
-
-        // Middle & Bottom: QColorDialog
-        QColor startColor = initial;
-        if (startColor.alpha() == 0) startColor.setAlpha(255);
-        QColorDialog* cd = new QColorDialog(startColor, container);
-        cd->setWindowFlags(Qt::Widget);
-        cd->setOptions(QColorDialog::DontUseNativeDialog | QColorDialog::ShowAlphaChannel | QColorDialog::NoButtons);
-        connect(cd, &QColorDialog::currentColorChanged, [onSelected](const QColor& c){
-            if (c.isValid()) onSelected(c);
-        });
-        layout->addWidget(cd);
-
         QWidgetAction* action = new QWidgetAction(menu);
-        action->setDefaultWidget(container);
+        action->setDefaultWidget(picker);
         menu->addAction(action);
         
-        menu->exec(sourceBtn->mapToGlobal(QPoint(0, sourceBtn->height())));
+        menu->exec(sourceBtn->mapToGlobal(QPoint(0, sourceBtn->height() + 4)));
         menu->deleteLater();
     };
 
@@ -266,24 +238,12 @@ void EditorPropsPanel::createArrowProps() {
     });
 
     QVBoxLayout* shadowLayout = new QVBoxLayout();
-    shadowLayout->addWidget(new QLabel("Shadow", m_arrowWidget), 0, Qt::AlignCenter);
-    m_btnArrowShadow = new QPushButton("▦");
-    m_btnArrowShadow->setFixedSize(40, 40);
-    m_btnArrowShadow->setStyleSheet("QPushButton { font-size: 24px; border: 1px solid #94a3b8; border-radius: 4px; background-color: #333; color: #aaa; }");
+    m_btnArrowShadow = new ShadowPropertyWidget(m_arrowWidget);
     shadowLayout->addWidget(m_btnArrowShadow, 0, Qt::AlignCenter);
     colorShadowLayout->addLayout(shadowLayout);
     
-    // Toggle shadow on/off
-    connect(m_btnArrowShadow, &QPushButton::clicked, this, [this](){
-        // For simplicity, we toggle between None and BottomRight
-        bool hasShadow = (m_arrowShadowDirection == ShadowDirection::None);
-        m_arrowShadowDirection = hasShadow ? ShadowDirection::BottomRight : ShadowDirection::None;
-        
-        m_btnArrowShadow->setStyleSheet(QString("QPushButton { font-size: 24px; border: 1px solid #94a3b8; border-radius: 4px; background-color: %1; color: %2; }")
-            .arg(hasShadow ? "#bfdbfe" : "#333").arg(hasShadow ? "#000" : "#aaa"));
-            
-        emit arrowHasShadowChanged(hasShadow);
-        emit arrowShadowDirectionChanged(m_arrowShadowDirection);
+    connect(m_btnArrowShadow, &ShadowPropertyWidget::shadowStyleChanged, this, [this](const ShadowStyle& style){
+        emit arrowShadowChanged(style);
     });
     
     mainLayout->addLayout(colorShadowLayout);
@@ -489,7 +449,10 @@ void EditorPropsPanel::createTextProps() {
     pickersLayout->addStretch();
     pickersLayout->addWidget(createPicker("Fill", m_btnTextFill));
     pickersLayout->addWidget(createPicker("Outline", m_btnTextOutline));
-    pickersLayout->addWidget(createPicker("Shadow", m_btnTextShadow));
+    
+    m_btnTextShadow = new ShadowPropertyWidget(m_textWidget);
+    pickersLayout->addWidget(m_btnTextShadow);
+    
     pickersLayout->addStretch();
     mainLayout->addLayout(pickersLayout);
 
@@ -627,64 +590,19 @@ void EditorPropsPanel::createTextProps() {
 
     auto pickColor = [this](QPushButton* sourceBtn, const QColor& initial, std::function<void(const QColor&)> onSelected) {
         QMenu* menu = new QMenu(this);
-        QWidget* container = new QWidget();
-        QVBoxLayout* layout = new QVBoxLayout(container);
-        layout->setContentsMargins(8, 8, 8, 8);
-        layout->setSpacing(8);
-
-        // Top: Transparent + Basic Colors
-        QHBoxLayout* topLayout = new QHBoxLayout();
-        topLayout->setSpacing(4);
+        menu->setStyleSheet("QMenu { background: #252525; border: 1px solid #444; border-radius: 8px; }");
         
-        struct Preset { QString name; QColor color; };
-        std::vector<Preset> presets = {
-            {"🚫", Qt::transparent},
-            {"", Qt::black},
-            {"", Qt::white},
-            {"", QColor("#ef4444")},
-            {"", QColor("#22c55e")},
-            {"", QColor("#3b82f6")},
-            {"", QColor("#eab308")}
-        };
+        EditorColorPicker* picker = new EditorColorPicker(initial, menu);
+        connect(picker, &EditorColorPicker::colorChanged, onSelected);
         
-        for (const auto& p : presets) {
-            QPushButton* b = new QPushButton(p.name);
-            b->setFixedSize(24, 24);
-            QString css = "QPushButton { border: 1px solid #ccc; border-radius: 12px; ";
-            if (p.color == Qt::transparent) {
-                css += "background: white; color: red; font-size: 14px; font-weight: bold; }";
-            } else {
-                css += QString("background-color: %1; }").arg(p.color.name());
-            }
-            b->setStyleSheet(css);
-            connect(b, &QPushButton::clicked, [menu, onSelected, p]() {
-                onSelected(p.color);
-                menu->close();
-            });
-            topLayout->addWidget(b);
-        }
-        topLayout->addStretch();
-        layout->addLayout(topLayout);
-
-        // Middle & Bottom: QColorDialog (Palette + RGB)
-        QColor startColor = initial;
-        if (startColor.alpha() == 0) startColor.setAlpha(255);
-        QColorDialog* cd = new QColorDialog(startColor, container);
-        cd->setWindowFlags(Qt::Widget);
-        cd->setOptions(QColorDialog::DontUseNativeDialog | QColorDialog::ShowAlphaChannel | QColorDialog::NoButtons);
-        connect(cd, &QColorDialog::currentColorChanged, [onSelected](const QColor& c){
-            if (c.isValid()) onSelected(c);
-        });
-        layout->addWidget(cd);
-
         QWidgetAction* action = new QWidgetAction(menu);
-        action->setDefaultWidget(container);
+        action->setDefaultWidget(picker);
         menu->addAction(action);
         
-        // Show below the button
-        menu->exec(sourceBtn->mapToGlobal(QPoint(0, sourceBtn->height())));
+        menu->exec(sourceBtn->mapToGlobal(QPoint(0, sourceBtn->height() + 4)));
         menu->deleteLater();
     };
+
 
     connect(m_btnTextFill, &QPushButton::clicked, this, [this, pickColor](){
         pickColor(m_btnTextFill, m_selectedColor, [this](const QColor& c){
@@ -702,40 +620,9 @@ void EditorPropsPanel::createTextProps() {
         });
     });
 
-    // Shadow 3x3 Grid Menu
-    QMenu* shadowMenu = new QMenu(m_btnTextShadow);
-    QWidget* shadowGridWidget = new QWidget();
-    QGridLayout* shadowGrid = new QGridLayout(shadowGridWidget);
-    shadowGrid->setSpacing(2);
-    shadowGrid->setContentsMargins(4, 4, 4, 4);
-
-    struct ShadowBtn { int row, col; ShadowDirection dir; QString icon; };
-    std::vector<ShadowBtn> shadowBtns = {
-        {0, 0, ShadowDirection::TopLeft, "↖"}, {0, 1, ShadowDirection::Top, "↑"}, {0, 2, ShadowDirection::TopRight, "↗"},
-        {1, 0, ShadowDirection::Left, "←"}, {1, 1, ShadowDirection::None, "⨯"}, {1, 2, ShadowDirection::Right, "→"},
-        {2, 0, ShadowDirection::BottomLeft, "↙"}, {2, 1, ShadowDirection::Bottom, "↓"}, {2, 2, ShadowDirection::BottomRight, "↘"}
-    };
-
-    for (const auto& sb : shadowBtns) {
-        QPushButton* b = new QPushButton(sb.icon);
-        b->setFixedSize(32, 32);
-        b->setStyleSheet("QPushButton { font-size: 16px; border: 1px solid #ccc; background: white; } QPushButton:hover { background: #e2e8f0; }");
-        connect(b, &QPushButton::clicked, this, [this, sb, shadowMenu](){
-            m_textShadowDirection = sb.dir;
-            m_textHasShadow = (sb.dir != ShadowDirection::None);
-            m_btnTextShadow->setStyleSheet(QString("border: 1px solid #94a3b8; border-radius: 4px; background-color: %1;")
-                                            .arg(m_textHasShadow ? "#bfdbfe" : "white"));
-            emit textHasShadowChanged(m_textHasShadow);
-            emit textShadowDirectionChanged(m_textShadowDirection);
-            shadowMenu->close();
-        });
-        shadowGrid->addWidget(b, sb.row, sb.col);
-    }
-    
-    QWidgetAction* shadowAction = new QWidgetAction(shadowMenu);
-    shadowAction->setDefaultWidget(shadowGridWidget);
-    shadowMenu->addAction(shadowAction);
-    m_btnTextShadow->setMenu(shadowMenu);
+    connect(m_btnTextShadow, &ShadowPropertyWidget::shadowStyleChanged, this, [this](const ShadowStyle& style){
+        emit textShadowChanged(style);
+    });
 
     connect(m_btnUnderline, &QPushButton::toggled, this, &EditorPropsPanel::textIsUnderlineChanged);
     connect(m_btnStrikeOut, &QPushButton::toggled, this, &EditorPropsPanel::textIsStrikeOutChanged);
@@ -819,6 +706,8 @@ void EditorPropsPanel::setCurrentTool(ToolType type) {
         case ToolType::Mosaic: 
         case ToolType::Blur: title = "Blur / Pixelate"; break;
         case ToolType::Highlight: title = "Highlight"; break;
+        case ToolType::Stamp: title = "Stamp"; break;
+        case ToolType::Crop: title = "Crop"; break;
     }
     m_toolNameLabel->setText(title);
 }
@@ -836,7 +725,10 @@ void EditorPropsPanel::updateVisibility(ToolType type) {
     m_stepWidget->setVisible(false);
 
     switch (type) {
-        case ToolType::None: showColor = false; showSize = false; break;
+        case ToolType::None:
+        case ToolType::Stamp:
+        case ToolType::Crop:
+            showColor = false; showSize = false; break;
         case ToolType::Arrow: 
             m_arrowWidget->setVisible(true); 
             showColor = false;
@@ -948,10 +840,7 @@ void EditorPropsPanel::syncFromSelection(const std::shared_ptr<AnnotationItem>& 
         m_arrowEndSizeLabel->setText(QString::number(arrow->endSize));
         m_arrowEndSizeSlider->blockSignals(false);
         
-        m_arrowShadowDirection = arrow->shadowDirection;
-        bool hasShadow = arrow->hasShadow;
-        m_btnArrowShadow->setStyleSheet(QString("QPushButton { font-size: 24px; border: 1px solid #94a3b8; border-radius: 4px; background-color: %1; color: %2; }")
-            .arg(hasShadow ? "#bfdbfe" : "#333").arg(hasShadow ? "#000" : "#aaa"));
+        m_btnArrowShadow->setShadowStyle(arrow->shadow);
         
         m_btnArrowColor->setStyleSheet(QString("border: 1px solid #94a3b8; border-radius: 4px; background-color: %1;").arg(arrow->color.name()));
 
@@ -1007,9 +896,7 @@ void EditorPropsPanel::syncFromSelection(const std::shared_ptr<AnnotationItem>& 
             m_btnTextOutline->setStyleSheet(QString("border: 1px solid #94a3b8; border-radius: 4px; background-color: %1;").arg(outColor));
         }
         if (m_btnTextShadow) {
-            m_textShadowDirection = txt->shadowDirection;
-            m_textHasShadow = txt->hasShadow;
-            m_btnTextShadow->setStyleSheet(QString("border: 1px solid #94a3b8; border-radius: 4px; background-color: %1;").arg(txt->hasShadow ? "#bfdbfe" : "white"));
+            m_btnTextShadow->setShadowStyle(txt->shadow);
         }
         
     } else if (item->getType() == ToolType::Freehand) {

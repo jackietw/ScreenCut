@@ -48,6 +48,7 @@ extern const QString SVG_COPY;
 extern const QString SVG_ZOOM_IN;
 extern const QString SVG_ZOOM_OUT;
 extern const QString SVG_RECENT;
+extern const QString SVG_DOWN_ARROW;
 extern const QString SVG_TAG;
 extern const QString SVG_EFFECTS;
 extern const QString SVG_PROPERTIES;
@@ -68,6 +69,7 @@ extern const QString SVG_FONT_BOLD;
 extern const QString SVG_FONT_ITALIC;
 extern const QString SVG_FONT_UNDERLINE;
 extern const QString SVG_FONT_STRIKEOUT;
+extern const QString SVG_TRANSPARENT;
 
 // Helper function to render SVG string to QIcon
 QIcon createSvgIcon(const QString& svgString, int width = 24, int height = 24);

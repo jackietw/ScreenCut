@@ -40,8 +40,7 @@ public:
     void setArrowOpacity(int opacity);
     void setArrowStartSize(int size);
     void setArrowEndSize(int size);
-    void setArrowHasShadow(bool hasShadow);
-    void setArrowShadowDirection(ShadowDirection dir);
+    void setArrowShadow(const ShadowStyle& style);
     void setShapeStyle(const QString& style);
     void setLineStyle(const QString& style);
     void setFontFamily(const QString& family);
@@ -57,8 +56,7 @@ public:
     void setTextOpacity(int opacity);
     void setTextLineSpacing(int spacing);
     void setTextOutlineColor(const QColor& color);
-    void setTextHasShadow(bool hasShadow);
-    void setTextShadowDirection(ShadowDirection direction);
+    void setTextShadow(const ShadowStyle& style);
     void setTextOutlineWidth(int width);
 
     void setBlurType(ToolType type);
@@ -125,8 +123,7 @@ private:
     int m_arrowOpacity = 100;
     int m_arrowStartSize = 3;
     int m_arrowEndSize = 3;
-    bool m_arrowHasShadow = false;
-    ShadowDirection m_arrowShadowDirection = ShadowDirection::None;
+    ShadowStyle m_arrowShadow;
     
     QString m_shapeStyle = "Rectangle";
     QString m_lineStyle = "Solid";
@@ -142,8 +139,7 @@ private:
     int m_textOpacity = 100;
     int m_textLineSpacing = 0;
     QColor m_textOutlineColor = Qt::transparent;
-    bool m_textHasShadow = false;
-    ShadowDirection m_textShadowDirection = ShadowDirection::BottomRight;
+    ShadowStyle m_textShadow;
     int m_textOutlineWidth = 0;
 
     ToolType m_blurType = ToolType::Mosaic;

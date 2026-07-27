@@ -172,8 +172,7 @@ void EditorMainWindow::initUI() {
     connect(m_propsPanel, &EditorPropsPanel::arrowOpacityChanged, m_canvas, &EditorCanvas::setArrowOpacity);
     connect(m_propsPanel, &EditorPropsPanel::arrowStartSizeChanged, m_canvas, &EditorCanvas::setArrowStartSize);
     connect(m_propsPanel, &EditorPropsPanel::arrowEndSizeChanged, m_canvas, &EditorCanvas::setArrowEndSize);
-    connect(m_propsPanel, &EditorPropsPanel::arrowHasShadowChanged, m_canvas, &EditorCanvas::setArrowHasShadow);
-    connect(m_propsPanel, &EditorPropsPanel::arrowShadowDirectionChanged, m_canvas, &EditorCanvas::setArrowShadowDirection);
+    connect(m_propsPanel, &EditorPropsPanel::arrowShadowChanged, m_canvas, &EditorCanvas::setArrowShadow);
     connect(m_propsPanel, &EditorPropsPanel::shapeStyleChanged, m_canvas, &EditorCanvas::setShapeStyle);
     connect(m_propsPanel, &EditorPropsPanel::lineStyleChanged, m_canvas, &EditorCanvas::setLineStyle);
     connect(m_propsPanel, &EditorPropsPanel::fontFamilyChanged, m_canvas, &EditorCanvas::setFontFamily);
@@ -189,8 +188,7 @@ void EditorMainWindow::initUI() {
     connect(m_propsPanel, &EditorPropsPanel::textOpacityChanged, m_canvas, &EditorCanvas::setTextOpacity);
     connect(m_propsPanel, &EditorPropsPanel::textLineSpacingChanged, m_canvas, &EditorCanvas::setTextLineSpacing);
     connect(m_propsPanel, &EditorPropsPanel::textOutlineColorChanged, m_canvas, &EditorCanvas::setTextOutlineColor);
-    connect(m_propsPanel, &EditorPropsPanel::textHasShadowChanged, m_canvas, &EditorCanvas::setTextHasShadow);
-    connect(m_propsPanel, &EditorPropsPanel::textShadowDirectionChanged, m_canvas, &EditorCanvas::setTextShadowDirection);
+    connect(m_propsPanel, &EditorPropsPanel::textShadowChanged, m_canvas, &EditorCanvas::setTextShadow);
     connect(m_propsPanel, &EditorPropsPanel::textOutlineWidthChanged, m_canvas, &EditorCanvas::setTextOutlineWidth);
     connect(m_propsPanel, &EditorPropsPanel::blurTypeChanged, m_canvas, &EditorCanvas::setBlurType);
     connect(m_propsPanel, &EditorPropsPanel::blurIntensityChanged, m_canvas, &EditorCanvas::setBlurIntensity);

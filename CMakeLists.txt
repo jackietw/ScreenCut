@@ -99,6 +99,10 @@ set(EDITOR_SOURCES
     src/widgets/editor_toolbar.cpp
     src/widgets/editor_props.h
     src/widgets/editor_props.cpp
+    src/widgets/editor_colorpicker.h
+    src/widgets/editor_colorpicker.cpp
+    src/widgets/editor_shadowpicker.h
+    src/widgets/editor_shadowpicker.cpp
     src/widgets/editor_thumbs.h
     src/widgets/editor_thumbs.cpp
     src/widgets/editor_canvas.h

@@ -8,6 +8,7 @@
 #include <QPainter>
 #include <QPointF>
 #include <QColor>
+#include "../editor/editor_models.h"
 
 namespace ScreenCut {
 
@@ -46,8 +47,7 @@ struct ArrowStyle {
     double startSize = 3.0; // Size modifier
     double endSize = 3.0;   // Size modifier
     
-    bool hasShadow = false;
-    int shadowDirection = 0; // 0=None, 1=TopLeft, etc.
+    ShadowStyle shadow;
     int opacity = 100;
 };
 

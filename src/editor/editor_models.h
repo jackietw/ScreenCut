@@ -34,16 +34,13 @@ enum class ToolType {
     Crop
 };
 
-enum class ShadowDirection {
-    None,
-    TopLeft,
-    Top,
-    TopRight,
-    Left,
-    Right,
-    BottomLeft,
-    Bottom,
-    BottomRight
+struct ShadowStyle {
+    bool enabled = false;
+    QColor color = QColor(0, 0, 0, 255);
+    int angle = 45;      // 0 = Right, 90 = Bottom, 180 = Left, 270 = Top
+    int distance = 4;
+    int opacity = 60;    // 0-100%
+    int blur = 2;
 };
 
 class AnnotationItem {
@@ -86,8 +83,7 @@ public:
     QString startStyle = "None"; // None, Arrow, Circle
     QString endStyle = "Arrow";  // None, Arrow, Circle
     QString lineStyle = "Solid"; // Solid, Dashed, Dotted
-    bool hasShadow = false;
-    ShadowDirection shadowDirection = ShadowDirection::None;
+    ShadowStyle shadow;
     
     int opacity = 100;
     int startSize = 3;
@@ -113,6 +109,7 @@ public:
     bool isFilled = false;
     QString shapeStyle = "Rectangle"; // Rectangle, Rounded Rectangle, Ellipse
     QString lineStyle = "Solid";
+    ShadowStyle shadow;
 };
 
 class FreehandAnnotation : public AnnotationItem {
@@ -167,9 +164,8 @@ public:
     int lineSpacing = 0;
     
     QColor outlineColor = Qt::transparent;
-    bool hasShadow = false;
     int outlineWidth = 0; // mapped from line width slider if outline color is active
-    ShadowDirection shadowDirection = ShadowDirection::BottomRight;
+    ShadowStyle shadow;
 };
 
 class StepMarkerAnnotation : public AnnotationItem {

@@ -19,6 +19,7 @@ class QComboBox;
 class QFontComboBox;
 
 namespace ScreenCut {
+class ShadowPropertyWidget;
 
 class EditorPropsPanel : public QWidget {
     Q_OBJECT
@@ -46,8 +47,7 @@ signals:
     void arrowOpacityChanged(int opacity);
     void arrowStartSizeChanged(int size);
     void arrowEndSizeChanged(int size);
-    void arrowHasShadowChanged(bool hasShadow);
-    void arrowShadowDirectionChanged(ScreenCut::ShadowDirection dir);
+    void arrowShadowChanged(const ShadowStyle& style);
     
     void shapeStyleChanged(const QString& style);
     void lineStyleChanged(const QString& style);
@@ -64,8 +64,7 @@ signals:
     void textOpacityChanged(int opacity);
     void textLineSpacingChanged(int spacing);
     void textOutlineColorChanged(const QColor& color);
-    void textHasShadowChanged(bool hasShadow);
-    void textShadowDirectionChanged(ShadowDirection direction);
+    void textShadowChanged(const ShadowStyle& style);
     void textOutlineWidthChanged(int width);
 
     void blurTypeChanged(ToolType type);
@@ -120,7 +119,7 @@ private:
     QLabel*  m_arrowEndSizeLabel = nullptr;
     
     QPushButton* m_btnArrowColor = nullptr;
-    QPushButton* m_btnArrowShadow = nullptr;
+    ScreenCut::ShadowPropertyWidget* m_btnArrowShadow = nullptr;
     
     QComboBox* m_shapeStyleCombo = nullptr;
     QComboBox* m_lineStyleCombo = nullptr;
@@ -137,7 +136,7 @@ private:
     
     QPushButton* m_btnTextFill = nullptr;
     QPushButton* m_btnTextOutline = nullptr;
-    QPushButton* m_btnTextShadow = nullptr;
+    ScreenCut::ShadowPropertyWidget* m_btnTextShadow = nullptr;
     
     QPushButton* m_btnBold = nullptr;
     QPushButton* m_btnItalic = nullptr;
@@ -157,9 +156,6 @@ private:
     QLabel* m_spacingLabel = nullptr;
     
     QColor m_textOutlineColor = Qt::transparent;
-    bool m_textHasShadow = false;
-    ShadowDirection m_textShadowDirection = ShadowDirection::BottomRight;
-    ShadowDirection m_arrowShadowDirection = ShadowDirection::None;
     
     QColor m_selectedColor = QColor(255, 59, 48);
     int m_currentWidth = 3;

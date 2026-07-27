@@ -24,6 +24,42 @@ namespace ScreenCut {
 ArrowAnnotation::ArrowAnnotation(const QPoint& start, const QPoint& end)
     : startPoint(start), endPoint(end) {}
 
+static QJsonObject shadowToJson(const ShadowStyle& s) {
+    QJsonObject obj;
+    obj["enabled"] = s.enabled;
+    obj["color"] = s.color.name(QColor::HexArgb);
+    obj["angle"] = s.angle;
+    obj["distance"] = s.distance;
+    obj["opacity"] = s.opacity;
+    obj["blur"] = s.blur;
+    return obj;
+}
+
+static ShadowStyle shadowFromJson(const QJsonObject& json) {
+    ShadowStyle s;
+    if (json.contains("shadow")) {
+        QJsonObject sh = json["shadow"].toObject();
+        s.enabled = sh["enabled"].toBool(false);
+        s.color = QColor(sh["color"].toString("#000000ff"));
+        s.angle = sh["angle"].toInt(45);
+        s.distance = sh["distance"].toInt(4);
+        s.opacity = sh["opacity"].toInt(60);
+        s.blur = sh["blur"].toInt(2);
+    } else if (json.contains("has_shadow")) {
+        s.enabled = json["has_shadow"].toBool(false);
+        int dir = json["shadow_dir"].toInt(0);
+        if (dir == 1) s.angle = 225;
+        else if (dir == 2) s.angle = 270;
+        else if (dir == 3) s.angle = 315;
+        else if (dir == 4) s.angle = 180;
+        else if (dir == 5) s.angle = 0;
+        else if (dir == 6) s.angle = 135;
+        else if (dir == 7) s.angle = 90;
+        else if (dir == 8) s.angle = 45;
+    }
+    return s;
+}
+
 void ArrowAnnotation::draw(QPainter& painter, const QPixmap* /*background*/) {
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing);
@@ -37,8 +73,7 @@ void ArrowAnnotation::draw(QPainter& painter, const QPixmap* /*background*/) {
     else if (lineStyle == "Dotted") style.penStyle = Qt::DotLine;
     else if (lineStyle == "DashDot") style.penStyle = Qt::DashDotLine;
 
-    style.hasShadow = hasShadow;
-    style.shadowDirection = (int)shadowDirection;
+    style.shadow = shadow;
     style.opacity = opacity;
 
     QString actualStartStyle = (arrowType != "Plain Line") ? startStyle : "None";
@@ -103,8 +138,7 @@ std::shared_ptr<AnnotationItem> ArrowAnnotation::clone() const {
     copy->startStyle = startStyle;
     copy->endStyle = endStyle;
     copy->lineStyle = lineStyle;
-    copy->hasShadow = hasShadow;
-    copy->shadowDirection = shadowDirection;
+    copy->shadow = shadow;
     copy->opacity = opacity;
     copy->startSize = startSize;
     copy->endSize = endSize;
@@ -215,6 +249,7 @@ std::shared_ptr<AnnotationItem> ShapeAnnotation::clone() const {
     copy->isFilled = isFilled;
     copy->shapeStyle = shapeStyle;
     copy->lineStyle = lineStyle;
+    copy->shadow = shadow;
     return copy;
 }
 
@@ -367,23 +402,29 @@ void TextAnnotation::draw(QPainter& painter, const QPixmap* /*background*/) {
     }
 
     // Shadow
-    if (hasShadow && shadowDirection != ShadowDirection::None) {
+    if (shadow.enabled) {
         painter.save();
-        QColor shadowColor = QColor(0, 0, 0, 150);
+        QColor shadowColor = shadow.color;
+        shadowColor.setAlpha(shadowColor.alpha() * shadow.opacity / 100);
         
-        int dx = 0, dy = 0;
-        int offset = 4; // Slightly larger offset for better visibility
-        if (shadowDirection == ShadowDirection::TopLeft) { dx = -offset; dy = -offset; }
-        else if (shadowDirection == ShadowDirection::Top) { dx = 0; dy = -offset; }
-        else if (shadowDirection == ShadowDirection::TopRight) { dx = offset; dy = -offset; }
-        else if (shadowDirection == ShadowDirection::Left) { dx = -offset; dy = 0; }
-        else if (shadowDirection == ShadowDirection::Right) { dx = offset; dy = 0; }
-        else if (shadowDirection == ShadowDirection::BottomLeft) { dx = -offset; dy = offset; }
-        else if (shadowDirection == ShadowDirection::Bottom) { dx = 0; dy = offset; }
-        else if (shadowDirection == ShadowDirection::BottomRight) { dx = offset; dy = offset; }
+        double rad = shadow.angle * M_PI / 180.0;
+        int dx = std::round(shadow.distance * std::cos(rad));
+        int dy = std::round(shadow.distance * std::sin(rad));
 
         painter.translate(dx, dy);
+        
+        if (shadow.blur > 0) {
+            int passes = shadow.blur;
+            QColor passColor = shadowColor;
+            passColor.setAlpha(passColor.alpha() / passes);
+            
+            for (int i = passes; i > 0; --i) {
+                QPen blurPen(passColor, i * 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+                painter.strokePath(textPath, blurPen);
+            }
+        }
         painter.fillPath(textPath, shadowColor);
+        
         painter.translate(-dx, -dy);
         painter.restore();
     }
@@ -456,9 +497,8 @@ std::shared_ptr<AnnotationItem> TextAnnotation::clone() const {
     copy->opacity = opacity;
     copy->lineSpacing = lineSpacing;
     copy->outlineColor = outlineColor;
-    copy->hasShadow = hasShadow;
     copy->outlineWidth = outlineWidth;
-    copy->shadowDirection = shadowDirection;
+    copy->shadow = shadow;
     return copy;
 }
 
@@ -739,9 +779,8 @@ QJsonObject ArrowAnnotation::toJson() const {
     obj["start_style"] = startStyle;
     obj["end_style"] = endStyle;
     obj["line_style"] = lineStyle;
-    obj["has_shadow"] = hasShadow;
-    obj["shadow_dir"] = static_cast<int>(shadowDirection);
     obj["opacity"] = opacity;
+    obj["shadow"] = shadowToJson(shadow);
     obj["start_size"] = startSize;
     obj["end_size"] = endSize;
     return obj;
@@ -754,6 +793,7 @@ QJsonObject ShapeAnnotation::toJson() const {
     obj["width"] = lineWidth;
     obj["shape_type"] = (shapeType == ToolType::Rectangle) ? "Rectangle" : "Ellipse";
     obj["is_filled"] = isFilled;
+    obj["shadow"] = shadowToJson(shadow);
     QJsonArray r; r.append(rect.x()); r.append(rect.y()); r.append(rect.width()); r.append(rect.height());
     obj["rect"] = r;
     return obj;
@@ -783,6 +823,10 @@ QJsonObject TextAnnotation::toJson() const {
     obj["text"] = text;
     obj["font_size"] = fontSize;
     obj["has_bg"] = hasBackgroundBox;
+    obj["shadow"] = shadowToJson(shadow);
+    obj["outline_color"] = outlineColor.name(QColor::HexArgb);
+    obj["outline_width"] = outlineWidth;
+    obj["opacity"] = opacity;
     return obj;
 }
 
@@ -837,8 +881,7 @@ std::shared_ptr<AnnotationItem> AnnotationItem::fromJson(const QJsonObject& json
         arrow->startStyle = json["start_style"].toString("None");
         arrow->endStyle = json["end_style"].toString("Arrow");
         arrow->lineStyle = json["line_style"].toString("Solid");
-        arrow->hasShadow = json["has_shadow"].toBool(false);
-        arrow->shadowDirection = static_cast<ShadowDirection>(json["shadow_dir"].toInt(0));
+        arrow->shadow = shadowFromJson(json);
         arrow->opacity = json["opacity"].toInt(100);
         arrow->startSize = json["start_size"].toInt(3);
         arrow->endSize = json["end_size"].toInt(3);
@@ -853,6 +896,7 @@ std::shared_ptr<AnnotationItem> AnnotationItem::fromJson(const QJsonObject& json
         shape->color = col;
         shape->lineWidth = w;
         shape->isFilled = json["is_filled"].toBool();
+        shape->shadow = shadowFromJson(json);
         return shape;
     } else if (objType == "freehand") {
         auto fh = std::make_shared<FreehandAnnotation>();
@@ -872,6 +916,10 @@ std::shared_ptr<AnnotationItem> AnnotationItem::fromJson(const QJsonObject& json
         txt->lineWidth = w;
         txt->fontSize = json["font_size"].toInt(16);
         txt->hasBackgroundBox = json["has_bg"].toBool(false);
+        txt->shadow = shadowFromJson(json);
+        txt->outlineColor = QColor(json["outline_color"].toString(QColor(Qt::transparent).name(QColor::HexArgb)));
+        txt->outlineWidth = json["outline_width"].toInt(0);
+        txt->opacity = json["opacity"].toInt(100);
         return txt;
     } else if (objType == "step") {
         QJsonArray c = json["center"].toArray();

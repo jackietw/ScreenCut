@@ -173,19 +173,10 @@ void EditorCanvas::setArrowEndSize(int size) {
     }
 }
 
-void EditorCanvas::setArrowHasShadow(bool hasShadow) {
-    m_arrowHasShadow = hasShadow;
+void EditorCanvas::setArrowShadow(const ShadowStyle& style) {
+    m_arrowShadow = style;
     if (m_selectedItem && m_selectedItem->getType() == ToolType::Arrow) {
-        std::static_pointer_cast<ArrowAnnotation>(m_selectedItem)->hasShadow = hasShadow;
-        update();
-        emit historyChanged();
-    }
-}
-
-void EditorCanvas::setArrowShadowDirection(ShadowDirection dir) {
-    m_arrowShadowDirection = dir;
-    if (m_selectedItem && m_selectedItem->getType() == ToolType::Arrow) {
-        std::static_pointer_cast<ArrowAnnotation>(m_selectedItem)->shadowDirection = dir;
+        std::static_pointer_cast<ArrowAnnotation>(m_selectedItem)->shadow = style;
         update();
         emit historyChanged();
     }
@@ -299,18 +290,10 @@ void EditorCanvas::setTextOutlineColor(const QColor& color) {
     }
 }
 
-void EditorCanvas::setTextHasShadow(bool hasShadow) {
-    m_textHasShadow = hasShadow;
+void EditorCanvas::setTextShadow(const ShadowStyle& style) {
+    m_textShadow = style;
     if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
-        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->hasShadow = hasShadow;
-        update(); emit historyChanged();
-    }
-}
-
-void EditorCanvas::setTextShadowDirection(ShadowDirection direction) {
-    m_textShadowDirection = direction;
-    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
-        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->shadowDirection = direction;
+        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->shadow = style;
         update(); emit historyChanged();
     }
 }
@@ -654,8 +637,7 @@ void EditorCanvas::commitText() {
         txtObj->opacity = m_textOpacity;
         txtObj->lineSpacing = m_textLineSpacing;
         txtObj->outlineColor = m_textOutlineColor;
-        txtObj->hasShadow = m_textHasShadow;
-        txtObj->shadowDirection = m_textShadowDirection;
+        txtObj->shadow = m_textShadow;
         txtObj->outlineWidth = m_textOutlineWidth;
     } else {
         auto txtItem = std::make_shared<TextAnnotation>(m_startPoint, text);
@@ -671,8 +653,7 @@ void EditorCanvas::commitText() {
         txtItem->opacity = m_textOpacity;
         txtItem->lineSpacing = m_textLineSpacing;
         txtItem->outlineColor = m_textOutlineColor;
-        txtItem->hasShadow = m_textHasShadow;
-        txtItem->shadowDirection = m_textShadowDirection;
+        txtItem->shadow = m_textShadow;
         txtItem->outlineWidth = m_textOutlineWidth;
         saveToHistory();
         m_annotations.push_back(txtItem);
@@ -886,8 +867,7 @@ void EditorCanvas::mousePressEvent(QMouseEvent* event) {
         arrow->opacity = m_arrowOpacity;
         arrow->startSize = m_arrowStartSize;
         arrow->endSize = m_arrowEndSize;
-        arrow->hasShadow = m_arrowHasShadow;
-        arrow->shadowDirection = m_arrowShadowDirection;
+        arrow->shadow = m_arrowShadow;
         m_tempItem = arrow;
     } else if (m_currentTool == ToolType::Rectangle || m_currentTool == ToolType::Ellipse) {
         auto shape = std::make_shared<ShapeAnnotation>(m_currentTool, QRect(m_startPoint, m_currentPoint));
