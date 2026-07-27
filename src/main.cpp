@@ -27,6 +27,7 @@
 #include "config.h"
 #include "core/capture_engine.h"
 #include "core/common_project.h"
+#include "core/migration_manager.h"
 #include "resources/IconUtils.h"
 #include "version.h"
 #include "widgets/common_notification.h"
@@ -110,6 +111,10 @@ int main(int argc, char *argv[]) {
 
   // Initialize global configuration and logging system
   Config::setupLogging();
+  
+  // Execute database version check and migration
+  MigrationManager::checkAndMigrate();
+
   qDebug() << "[PERF] Config::setupLogging() finished:"
            << g_startupTimer.elapsed() << "ms";
   qDebug() << "[Main] ScreenCut Application started. Version:"

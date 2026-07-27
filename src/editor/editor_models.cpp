@@ -157,7 +157,13 @@ void ShapeAnnotation::draw(QPainter& painter, const QPixmap* /*background*/) {
 }
 
 bool ShapeAnnotation::contains(const QPoint& pos) const {
-    return rect.adjusted(-6, -6, 6, 6).contains(pos);
+    if (isFilled) {
+        return rect.adjusted(-6, -6, 6, 6).contains(pos);
+    } else {
+        QRect outer = rect.adjusted(-6, -6, 6, 6);
+        QRect inner = rect.adjusted(6, 6, -6, -6);
+        return outer.contains(pos) && (!inner.isValid() || !inner.contains(pos));
+    }
 }
 
 void ShapeAnnotation::moveBy(const QPoint& delta) {
@@ -342,12 +348,12 @@ void TextAnnotation::draw(QPainter& painter, const QPixmap* /*background*/) {
     int currentY = startY + fm.ascent();
     
     for (const QString& line : lines) {
-        int lineWidth = fm.horizontalAdvance(line);
+        int lineW = fm.horizontalAdvance(line);
         int currentX = textRect.x() + 8; // left padding
         if (hAlign == TextAlign::Center) {
-            currentX = textRect.x() + (textRect.width() - lineWidth) / 2;
+            currentX = textRect.x() + (textRect.width() - lineW) / 2;
         } else if (hAlign == TextAlign::Right) {
-            currentX = textRect.right() - 8 - lineWidth;
+            currentX = textRect.right() - 8 - lineW;
         }
         textPath.addText(currentX, currentY, font, line);
         currentY += fm.height() + lineSpacing;
@@ -805,6 +811,7 @@ std::shared_ptr<AnnotationItem> AnnotationItem::fromJson(const QJsonObject& json
     if (objType == "arrow") {
         QJsonArray sp = json["start_pos"].toArray();
         QJsonArray ep = json["end_pos"].toArray();
+        if (sp.size() < 2 || ep.size() < 2) return nullptr;
         auto arrow = std::make_shared<ArrowAnnotation>(QPoint(sp[0].toInt(), sp[1].toInt()), QPoint(ep[0].toInt(), ep[1].toInt()));
         arrow->color = col;
         arrow->lineWidth = w;
@@ -813,6 +820,7 @@ std::shared_ptr<AnnotationItem> AnnotationItem::fromJson(const QJsonObject& json
         QString st = json["shape_type"].toString("Rectangle");
         ToolType tt = (st == "Ellipse") ? ToolType::Ellipse : ToolType::Rectangle;
         QJsonArray r = json["rect"].toArray();
+        if (r.size() < 4) return nullptr;
         auto shape = std::make_shared<ShapeAnnotation>(tt, QRect(r[0].toInt(), r[1].toInt(), r[2].toInt(), r[3].toInt()));
         shape->color = col;
         shape->lineWidth = w;
@@ -830,6 +838,7 @@ std::shared_ptr<AnnotationItem> AnnotationItem::fromJson(const QJsonObject& json
         return fh;
     } else if (objType == "text") {
         QJsonArray pos = json["pos"].toArray();
+        if (pos.size() < 2) return nullptr;
         auto txt = std::make_shared<TextAnnotation>(QPoint(pos[0].toInt(), pos[1].toInt()), json["text"].toString());
         txt->color = col;
         txt->lineWidth = w;
@@ -838,6 +847,7 @@ std::shared_ptr<AnnotationItem> AnnotationItem::fromJson(const QJsonObject& json
         return txt;
     } else if (objType == "step") {
         QJsonArray c = json["center"].toArray();
+        if (c.size() < 2) return nullptr;
         auto step = std::make_shared<StepMarkerAnnotation>(QPoint(c[0].toInt(), c[1].toInt()), json["step_number"].toInt(1));
         step->color = col;
         step->lineWidth = w;
@@ -847,6 +857,7 @@ std::shared_ptr<AnnotationItem> AnnotationItem::fromJson(const QJsonObject& json
         QString st = json["shader_type"].toString("Mosaic");
         ToolType tt = (st == "Blur") ? ToolType::Blur : ToolType::Mosaic;
         QJsonArray r = json["rect"].toArray();
+        if (r.size() < 4) return nullptr;
         auto shader = std::make_shared<ShaderAnnotation>(tt, QRect(r[0].toInt(), r[1].toInt(), r[2].toInt(), r[3].toInt()));
         shader->color = col;
         shader->lineWidth = w;
@@ -854,6 +865,7 @@ std::shared_ptr<AnnotationItem> AnnotationItem::fromJson(const QJsonObject& json
         return shader;
     } else if (objType == "highlight") {
         QJsonArray r = json["rect"].toArray();
+        if (r.size() < 4) return nullptr;
         auto hl = std::make_shared<HighlightAnnotation>(QRect(r[0].toInt(), r[1].toInt(), r[2].toInt(), r[3].toInt()));
         hl->color = col;
         hl->lineWidth = w;

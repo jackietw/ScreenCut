@@ -457,6 +457,8 @@ void EditorCanvas::commitText() {
         saveToHistory();
         m_annotations.push_back(txtItem);
         m_selectedItem = txtItem;
+        txtItem->isSelected = true;
+        emit itemSelected(txtItem);
     }
     
     m_editingTextObj = nullptr;
@@ -537,11 +539,16 @@ void EditorCanvas::mousePressEvent(QMouseEvent* event) {
     m_startPoint = mapToImage(event->pos());
     m_currentPoint = m_startPoint;
 
-    // 1. Check annotation handles first if in None tool
-    if (m_currentTool == ToolType::None && m_selectedItem) {
+    // 1. Check annotation handles first (even if not in None tool)
+    if (m_selectedItem) {
         int handle = m_selectedItem->hitTestHandle(m_startPoint);
         if (handle != -1) {
             m_activeHandle = handle;
+            return;
+        }
+        if (m_selectedItem->contains(m_startPoint)) {
+            m_isDragging = true;
+            m_lastDragPoint = m_startPoint;
             return;
         }
     }
@@ -562,7 +569,7 @@ void EditorCanvas::mousePressEvent(QMouseEvent* event) {
             m_dragOriginalRect = m_background.rect();
             m_startGlobalPos = event->globalPosition().toPoint();
             // Deselect item if we were in None tool
-            if (m_currentTool == ToolType::None && m_selectedItem) {
+            if (m_selectedItem) {
                 m_selectedItem->isSelected = false;
                 m_selectedItem = nullptr;
                 emit itemSelected(nullptr);
@@ -570,6 +577,14 @@ void EditorCanvas::mousePressEvent(QMouseEvent* event) {
             update();
             return;
         }
+    }
+
+    // Deselect currently selected item since we clicked outside it
+    if (m_selectedItem) {
+        m_selectedItem->isSelected = false;
+        m_selectedItem = nullptr;
+        emit itemSelected(nullptr);
+        update();
     }
 
     // 3. Normal selection logic for None tool
@@ -702,7 +717,7 @@ void EditorCanvas::mouseMoveEvent(QMouseEvent* event) {
         return;
     }
 
-    if (m_currentTool == ToolType::None && m_selectedItem) {
+    if (m_selectedItem && (m_activeHandle != -1 || m_isDragging)) {
         if (m_activeHandle != -1) {
             m_selectedItem->moveHandle(m_activeHandle, m_currentPoint);
             update();
@@ -716,22 +731,24 @@ void EditorCanvas::mouseMoveEvent(QMouseEvent* event) {
         }
     }
 
-    if (m_isDrawing && m_tempItem) {
-        if (m_currentTool == ToolType::Arrow) {
-            auto arrow = std::dynamic_pointer_cast<ArrowAnnotation>(m_tempItem);
-            if (arrow) arrow->endPoint = m_currentPoint;
-        } else if (m_currentTool == ToolType::Rectangle || m_currentTool == ToolType::Ellipse) {
-            auto shape = std::dynamic_pointer_cast<ShapeAnnotation>(m_tempItem);
-            if (shape) shape->rect = QRect(m_startPoint, m_currentPoint).normalized();
-        } else if (m_currentTool == ToolType::Freehand) {
-            auto freehand = std::dynamic_pointer_cast<FreehandAnnotation>(m_tempItem);
-            if (freehand) freehand->addPoint(m_currentPoint);
-        } else if (m_currentTool == ToolType::Mosaic || m_currentTool == ToolType::Blur) {
-            auto shader = std::dynamic_pointer_cast<ShaderAnnotation>(m_tempItem);
-            if (shader) shader->rect = QRect(m_startPoint, m_currentPoint).normalized();
-        } else if (m_currentTool == ToolType::Highlight) {
-            auto highlight = std::dynamic_pointer_cast<HighlightAnnotation>(m_tempItem);
-            if (highlight) highlight->rect = QRect(m_startPoint, m_currentPoint).normalized();
+    if (m_isDrawing) {
+        if (m_tempItem) {
+            if (m_currentTool == ToolType::Arrow) {
+                auto arrow = std::dynamic_pointer_cast<ArrowAnnotation>(m_tempItem);
+                if (arrow) arrow->endPoint = m_currentPoint;
+            } else if (m_currentTool == ToolType::Rectangle || m_currentTool == ToolType::Ellipse) {
+                auto shape = std::dynamic_pointer_cast<ShapeAnnotation>(m_tempItem);
+                if (shape) shape->rect = QRect(m_startPoint, m_currentPoint).normalized();
+            } else if (m_currentTool == ToolType::Freehand) {
+                auto freehand = std::dynamic_pointer_cast<FreehandAnnotation>(m_tempItem);
+                if (freehand) freehand->addPoint(m_currentPoint);
+            } else if (m_currentTool == ToolType::Mosaic || m_currentTool == ToolType::Blur) {
+                auto shader = std::dynamic_pointer_cast<ShaderAnnotation>(m_tempItem);
+                if (shader) shader->rect = QRect(m_startPoint, m_currentPoint).normalized();
+            } else if (m_currentTool == ToolType::Highlight) {
+                auto highlight = std::dynamic_pointer_cast<HighlightAnnotation>(m_tempItem);
+                if (highlight) highlight->rect = QRect(m_startPoint, m_currentPoint).normalized();
+            }
         }
         update();
     }
@@ -747,13 +764,11 @@ void EditorCanvas::mouseReleaseEvent(QMouseEvent* event) {
             return;
         }
         
-        if (m_currentTool == ToolType::None) {
-            if (m_isDragging || m_activeHandle != -1) {
-                m_isDragging = false;
-                m_activeHandle = -1;
-                updateAutoCanvasSize();
-                emit historyChanged();
-            }
+        if (m_isDragging || m_activeHandle != -1) {
+            m_isDragging = false;
+            m_activeHandle = -1;
+            updateAutoCanvasSize();
+            emit historyChanged();
         } else if (m_isDrawing) {
             m_isDrawing = false;
             if (m_currentTool == ToolType::Text) {
@@ -796,8 +811,11 @@ void EditorCanvas::mouseReleaseEvent(QMouseEvent* event) {
                 update();
             } else if (m_tempItem) {
                 saveToHistory();
+                m_tempItem->isSelected = true;
+                m_selectedItem = m_tempItem;
                 m_annotations.push_back(m_tempItem);
                 m_tempItem.reset();
+                emit itemSelected(m_selectedItem);
                 updateAutoCanvasSize();
                 update();
                 emit historyChanged();

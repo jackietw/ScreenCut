@@ -84,10 +84,10 @@ void EditorThumbsStrip::refreshLibrary() {
         QFile file(fi.absoluteFilePath());
         if (!file.open(QIODevice::ReadOnly)) continue;
         
-        QByteArray data = file.readAll();
+        QByteArray fileData = file.readAll();
         file.close();
         
-        QJsonDocument doc = QJsonDocument::fromJson(data);
+        QJsonDocument doc = QJsonDocument::fromJson(fileData);
         if (!doc.isObject()) continue;
         
         QString thumbB64 = doc.object()["thumbnail_base64"].toString();

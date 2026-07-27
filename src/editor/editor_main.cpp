@@ -19,6 +19,7 @@
 #include "../version.h"
 #include "../config.h"
 #include "../core/common_project.h"
+#include "../core/migration_manager.h"
 #include <QFontDatabase>
 #include <QFont>
 
@@ -69,6 +70,9 @@ int main(int argc, char *argv[]) {
     // Initialize global configuration and logging system
     Config::setupLogging();
     qDebug() << "[EditorMain] ScreenCut Editor Application started (Standalone Studio). Version:" << SCREENCUT_VERSION_STR << "| DebugMode:" << Config::isDebugMode();
+
+    // Execute database version check and migration
+    MigrationManager::checkAndMigrate();
 
     // 2. Instantiate standalone EditorMainWindow
     EditorMainWindow* editor = EditorMainWindow::instance();

@@ -37,7 +37,7 @@ Notification::Notification(const QString& message, QWidget* parent, int duration
     
     QVBoxLayout* bgLayout = new QVBoxLayout(bg);
     QLabel* lblMsg = new QLabel(message, bg);
-    lblMsg->setStyleSheet("color: white; font-size: 16px; font-weight: bold; background: transparent;");
+    lblMsg->setStyleSheet("color: white; font-size: 16px; font-weight: normal; background: transparent;");
     lblMsg->setAlignment(Qt::AlignCenter);
     bgLayout->addWidget(lblMsg);
 

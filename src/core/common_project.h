@@ -22,7 +22,9 @@
 #include <QDebug>
 #include <QProcess>
 #include <QCoreApplication>
+#include <QVersionNumber>
 #include "../version.h"
+#include "../config.h"
 
 namespace ScreenCut {
 
@@ -108,6 +110,18 @@ public:
         }
 
         QJsonObject root = doc.object();
+        
+        QString fileVerStr = root["version"].toString("0.0.0");
+        QString minVerStr = Config::getValue("min_compatible_scut_version", "1.0.0").toString();
+        
+        QVersionNumber fileVer = QVersionNumber::fromString(fileVerStr);
+        QVersionNumber minVer = QVersionNumber::fromString(minVerStr);
+        
+        if (fileVer < minVer) {
+            qWarning() << "[ScutProject] File version" << fileVerStr << "is older than minimum compatible version" << minVerStr;
+            return false;
+        }
+
         QString imgB64 = root["image_base64"].toString();
         if (imgB64.isEmpty()) {
             qWarning() << "[ScutProject] No image_base64 found in scut file:" << filePath;

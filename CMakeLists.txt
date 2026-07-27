@@ -45,6 +45,8 @@ set(SHARED_SOURCES
     src/config.h
     src/config.cpp
     src/core/common_project.h
+    src/core/migration_manager.h
+    src/core/migration_manager.cpp
     src/platform/platform.h
     src/widgets/common_switch.h
     src/widgets/common_switch.cpp
