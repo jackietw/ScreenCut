@@ -166,6 +166,14 @@ void EditorMainWindow::initUI() {
 
     // Dynamic properties connections
     connect(m_propsPanel, &EditorPropsPanel::arrowTypeChanged, m_canvas, &EditorCanvas::setArrowType);
+    connect(m_propsPanel, &EditorPropsPanel::arrowStartStyleChanged, m_canvas, &EditorCanvas::setArrowStartStyle);
+    connect(m_propsPanel, &EditorPropsPanel::arrowEndStyleChanged, m_canvas, &EditorCanvas::setArrowEndStyle);
+    connect(m_propsPanel, &EditorPropsPanel::arrowLineStyleChanged, m_canvas, &EditorCanvas::setArrowLineStyle);
+    connect(m_propsPanel, &EditorPropsPanel::arrowOpacityChanged, m_canvas, &EditorCanvas::setArrowOpacity);
+    connect(m_propsPanel, &EditorPropsPanel::arrowStartSizeChanged, m_canvas, &EditorCanvas::setArrowStartSize);
+    connect(m_propsPanel, &EditorPropsPanel::arrowEndSizeChanged, m_canvas, &EditorCanvas::setArrowEndSize);
+    connect(m_propsPanel, &EditorPropsPanel::arrowHasShadowChanged, m_canvas, &EditorCanvas::setArrowHasShadow);
+    connect(m_propsPanel, &EditorPropsPanel::arrowShadowDirectionChanged, m_canvas, &EditorCanvas::setArrowShadowDirection);
     connect(m_propsPanel, &EditorPropsPanel::shapeStyleChanged, m_canvas, &EditorCanvas::setShapeStyle);
     connect(m_propsPanel, &EditorPropsPanel::lineStyleChanged, m_canvas, &EditorCanvas::setLineStyle);
     connect(m_propsPanel, &EditorPropsPanel::fontFamilyChanged, m_canvas, &EditorCanvas::setFontFamily);

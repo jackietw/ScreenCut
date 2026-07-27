@@ -119,6 +119,78 @@ void EditorCanvas::setArrowType(const QString& type) {
     }
 }
 
+void EditorCanvas::setArrowStartStyle(const QString& style) {
+    m_arrowStartStyle = style;
+    if (m_selectedItem && m_selectedItem->getType() == ToolType::Arrow) {
+        std::static_pointer_cast<ArrowAnnotation>(m_selectedItem)->startStyle = style;
+        update();
+        emit historyChanged();
+    }
+}
+
+void EditorCanvas::setArrowEndStyle(const QString& style) {
+    m_arrowEndStyle = style;
+    if (m_selectedItem && m_selectedItem->getType() == ToolType::Arrow) {
+        std::static_pointer_cast<ArrowAnnotation>(m_selectedItem)->endStyle = style;
+        update();
+        emit historyChanged();
+    }
+}
+
+void EditorCanvas::setArrowLineStyle(const QString& style) {
+    m_arrowLineStyle = style;
+    if (m_selectedItem && m_selectedItem->getType() == ToolType::Arrow) {
+        std::static_pointer_cast<ArrowAnnotation>(m_selectedItem)->lineStyle = style;
+        update();
+        emit historyChanged();
+    }
+}
+
+void EditorCanvas::setArrowOpacity(int opacity) {
+    m_arrowOpacity = opacity;
+    if (m_selectedItem && m_selectedItem->getType() == ToolType::Arrow) {
+        std::static_pointer_cast<ArrowAnnotation>(m_selectedItem)->opacity = opacity;
+        update();
+        emit historyChanged();
+    }
+}
+
+void EditorCanvas::setArrowStartSize(int size) {
+    m_arrowStartSize = size;
+    if (m_selectedItem && m_selectedItem->getType() == ToolType::Arrow) {
+        std::static_pointer_cast<ArrowAnnotation>(m_selectedItem)->startSize = size;
+        update();
+        emit historyChanged();
+    }
+}
+
+void EditorCanvas::setArrowEndSize(int size) {
+    m_arrowEndSize = size;
+    if (m_selectedItem && m_selectedItem->getType() == ToolType::Arrow) {
+        std::static_pointer_cast<ArrowAnnotation>(m_selectedItem)->endSize = size;
+        update();
+        emit historyChanged();
+    }
+}
+
+void EditorCanvas::setArrowHasShadow(bool hasShadow) {
+    m_arrowHasShadow = hasShadow;
+    if (m_selectedItem && m_selectedItem->getType() == ToolType::Arrow) {
+        std::static_pointer_cast<ArrowAnnotation>(m_selectedItem)->hasShadow = hasShadow;
+        update();
+        emit historyChanged();
+    }
+}
+
+void EditorCanvas::setArrowShadowDirection(ShadowDirection dir) {
+    m_arrowShadowDirection = dir;
+    if (m_selectedItem && m_selectedItem->getType() == ToolType::Arrow) {
+        std::static_pointer_cast<ArrowAnnotation>(m_selectedItem)->shadowDirection = dir;
+        update();
+        emit historyChanged();
+    }
+}
+
 void EditorCanvas::setShapeStyle(const QString& style) {
     m_shapeStyle = style;
     if (m_selectedItem && (m_selectedItem->getType() == ToolType::Rectangle || m_selectedItem->getType() == ToolType::Ellipse)) {
@@ -808,6 +880,14 @@ void EditorCanvas::mousePressEvent(QMouseEvent* event) {
         arrow->color = m_currentColor;
         arrow->lineWidth = m_currentLineWidth;
         arrow->arrowType = m_arrowType;
+        arrow->startStyle = m_arrowStartStyle;
+        arrow->endStyle = m_arrowEndStyle;
+        arrow->lineStyle = m_arrowLineStyle;
+        arrow->opacity = m_arrowOpacity;
+        arrow->startSize = m_arrowStartSize;
+        arrow->endSize = m_arrowEndSize;
+        arrow->hasShadow = m_arrowHasShadow;
+        arrow->shadowDirection = m_arrowShadowDirection;
         m_tempItem = arrow;
     } else if (m_currentTool == ToolType::Rectangle || m_currentTool == ToolType::Ellipse) {
         auto shape = std::make_shared<ShapeAnnotation>(m_currentTool, QRect(m_startPoint, m_currentPoint));

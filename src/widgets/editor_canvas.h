@@ -32,6 +32,16 @@ public:
     void setLineWidth(int width);
     
     void setArrowType(const QString& type);
+    
+    // New arrow property setters
+    void setArrowStartStyle(const QString& style);
+    void setArrowEndStyle(const QString& style);
+    void setArrowLineStyle(const QString& style);
+    void setArrowOpacity(int opacity);
+    void setArrowStartSize(int size);
+    void setArrowEndSize(int size);
+    void setArrowHasShadow(bool hasShadow);
+    void setArrowShadowDirection(ShadowDirection dir);
     void setShapeStyle(const QString& style);
     void setLineStyle(const QString& style);
     void setFontFamily(const QString& family);
@@ -108,7 +118,16 @@ private:
     int m_nextStepNumber = 1;
     qreal m_zoomFactor = 1.0;
     
-    QString m_arrowType = "Single Arrow";
+    QString m_arrowType = "Custom";
+    QString m_arrowStartStyle = "None";
+    QString m_arrowEndStyle = "Arrow";
+    QString m_arrowLineStyle = "Solid";
+    int m_arrowOpacity = 100;
+    int m_arrowStartSize = 3;
+    int m_arrowEndSize = 3;
+    bool m_arrowHasShadow = false;
+    ShadowDirection m_arrowShadowDirection = ShadowDirection::None;
+    
     QString m_shapeStyle = "Rectangle";
     QString m_lineStyle = "Solid";
     QString m_fontFamily = "Arial";

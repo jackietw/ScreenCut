@@ -38,6 +38,17 @@ signals:
     void lineWidthChanged(int width);
     
     void arrowTypeChanged(const QString& type);
+    
+    // New arrow property signals
+    void arrowStartStyleChanged(const QString& style);
+    void arrowEndStyleChanged(const QString& style);
+    void arrowLineStyleChanged(const QString& style);
+    void arrowOpacityChanged(int opacity);
+    void arrowStartSizeChanged(int size);
+    void arrowEndSizeChanged(int size);
+    void arrowHasShadowChanged(bool hasShadow);
+    void arrowShadowDirectionChanged(ScreenCut::ShadowDirection dir);
+    
     void shapeStyleChanged(const QString& style);
     void lineStyleChanged(const QString& style);
     void fontFamilyChanged(const QString& family);
@@ -95,6 +106,22 @@ private:
     QLabel* m_widthTitle = nullptr;
     
     QComboBox* m_arrowTypeCombo = nullptr;
+    QComboBox* m_arrowLineStyleCombo = nullptr;
+    QComboBox* m_arrowStartStyleCombo = nullptr;
+    QComboBox* m_arrowEndStyleCombo = nullptr;
+    
+    QSlider* m_arrowWidthSlider = nullptr;
+    QLabel*  m_arrowWidthLabel = nullptr;
+    QSlider* m_arrowOpacitySlider = nullptr;
+    QLabel*  m_arrowOpacityLabel = nullptr;
+    QSlider* m_arrowStartSizeSlider = nullptr;
+    QLabel*  m_arrowStartSizeLabel = nullptr;
+    QSlider* m_arrowEndSizeSlider = nullptr;
+    QLabel*  m_arrowEndSizeLabel = nullptr;
+    
+    QPushButton* m_btnArrowColor = nullptr;
+    QPushButton* m_btnArrowShadow = nullptr;
+    
     QComboBox* m_shapeStyleCombo = nullptr;
     QComboBox* m_lineStyleCombo = nullptr;
     QComboBox* m_blurTypeCombo = nullptr;
@@ -132,6 +159,7 @@ private:
     QColor m_textOutlineColor = Qt::transparent;
     bool m_textHasShadow = false;
     ShadowDirection m_textShadowDirection = ShadowDirection::BottomRight;
+    ShadowDirection m_arrowShadowDirection = ShadowDirection::None;
     
     QColor m_selectedColor = QColor(255, 59, 48);
     int m_currentWidth = 3;

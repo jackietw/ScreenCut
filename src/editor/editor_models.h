@@ -82,7 +82,16 @@ public:
 
     QPoint startPoint;
     QPoint endPoint;
-    QString arrowType = "Single Arrow";
+    QString arrowType = "Single Arrow"; // Keep for backwards compatibility or mapping
+    QString startStyle = "None"; // None, Arrow, Circle
+    QString endStyle = "Arrow";  // None, Arrow, Circle
+    QString lineStyle = "Solid"; // Solid, Dashed, Dotted
+    bool hasShadow = false;
+    ShadowDirection shadowDirection = ShadowDirection::None;
+    
+    int opacity = 100;
+    int startSize = 3;
+    int endSize = 3;
 };
 
 class ShapeAnnotation : public AnnotationItem {

@@ -4,6 +4,7 @@
  */
 
 #include "editor_models.h"
+#include "../widgets/editor_arrow.h"
 #include <QtMath>
 #include <QFont>
 #include <QFontMetrics>
@@ -27,38 +28,36 @@ void ArrowAnnotation::draw(QPainter& painter, const QPixmap* /*background*/) {
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing);
 
-    QPen pen(color, lineWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
-    painter.setPen(pen);
-    painter.setBrush(color);
+    ArrowStyle style;
+    style.color = color;
+    style.lineWidth = lineWidth;
+    
+    style.penStyle = Qt::SolidLine;
+    if (lineStyle == "Dashed") style.penStyle = Qt::DashLine;
+    else if (lineStyle == "Dotted") style.penStyle = Qt::DotLine;
+    else if (lineStyle == "DashDot") style.penStyle = Qt::DashDotLine;
 
-    // Draw main line
-    painter.drawLine(startPoint, endPoint);
+    style.hasShadow = hasShadow;
+    style.shadowDirection = (int)shadowDirection;
+    style.opacity = opacity;
 
-    // Calculate arrowhead geometry
-    if (arrowType != "Plain Line") {
-        double angle = std::atan2(endPoint.y() - startPoint.y(), endPoint.x() - startPoint.x());
-        double arrowLength = qMax(12.0, lineWidth * 3.5);
-        double arrowAngle = qDegreesToRadians(25.0);
+    QString actualStartStyle = (arrowType != "Plain Line") ? startStyle : "None";
+    QString actualEndStyle = (arrowType != "Plain Line") ? endStyle : "None";
 
-        QPointF p1 = QPointF(endPoint.x() - arrowLength * std::cos(angle - arrowAngle),
-                             endPoint.y() - arrowLength * std::sin(angle - arrowAngle));
-        QPointF p2 = QPointF(endPoint.x() - arrowLength * std::cos(angle + arrowAngle),
-                             endPoint.y() - arrowLength * std::sin(angle + arrowAngle));
-
-        QPolygonF arrowhead;
-        arrowhead << endPoint << p1 << p2;
-        painter.drawPolygon(arrowhead);
-
-        if (arrowType == "Double Arrow") {
-            QPointF sp1 = QPointF(startPoint.x() + arrowLength * std::cos(angle - arrowAngle),
-                                  startPoint.y() + arrowLength * std::sin(angle - arrowAngle));
-            QPointF sp2 = QPointF(startPoint.x() + arrowLength * std::cos(angle + arrowAngle),
-                                  startPoint.y() + arrowLength * std::sin(angle + arrowAngle));
-            QPolygonF arrowhead2;
-            arrowhead2 << startPoint << sp1 << sp2;
-            painter.drawPolygon(arrowhead2);
-        }
+    if (arrowType == "Single Arrow") {
+        actualStartStyle = "None";
+        actualEndStyle = "FilledTriangle";
+    } else if (arrowType == "Double Arrow") {
+        actualStartStyle = "FilledTriangle";
+        actualEndStyle = "FilledTriangle";
     }
+
+    style.startHead = ArrowPainter::stringToArrowHead(actualStartStyle);
+    style.endHead = ArrowPainter::stringToArrowHead(actualEndStyle);
+    style.startSize = startSize;
+    style.endSize = endSize;
+
+    ArrowPainter::draw(painter, startPoint, endPoint, style);
 
     if (isSelected) {
         painter.setPen(QPen(Qt::white, 1, Qt::DashLine));
@@ -101,6 +100,14 @@ std::shared_ptr<AnnotationItem> ArrowAnnotation::clone() const {
     copy->color = color;
     copy->lineWidth = lineWidth;
     copy->arrowType = arrowType;
+    copy->startStyle = startStyle;
+    copy->endStyle = endStyle;
+    copy->lineStyle = lineStyle;
+    copy->hasShadow = hasShadow;
+    copy->shadowDirection = shadowDirection;
+    copy->opacity = opacity;
+    copy->startSize = startSize;
+    copy->endSize = endSize;
     return copy;
 }
 
@@ -727,6 +734,16 @@ QJsonObject ArrowAnnotation::toJson() const {
     QJsonArray ep; ep.append(endPoint.x()); ep.append(endPoint.y());
     obj["start_pos"] = sp;
     obj["end_pos"] = ep;
+    
+    obj["arrow_type"] = arrowType;
+    obj["start_style"] = startStyle;
+    obj["end_style"] = endStyle;
+    obj["line_style"] = lineStyle;
+    obj["has_shadow"] = hasShadow;
+    obj["shadow_dir"] = static_cast<int>(shadowDirection);
+    obj["opacity"] = opacity;
+    obj["start_size"] = startSize;
+    obj["end_size"] = endSize;
     return obj;
 }
 
@@ -815,6 +832,17 @@ std::shared_ptr<AnnotationItem> AnnotationItem::fromJson(const QJsonObject& json
         auto arrow = std::make_shared<ArrowAnnotation>(QPoint(sp[0].toInt(), sp[1].toInt()), QPoint(ep[0].toInt(), ep[1].toInt()));
         arrow->color = col;
         arrow->lineWidth = w;
+        
+        arrow->arrowType = json["arrow_type"].toString("Single Arrow");
+        arrow->startStyle = json["start_style"].toString("None");
+        arrow->endStyle = json["end_style"].toString("Arrow");
+        arrow->lineStyle = json["line_style"].toString("Solid");
+        arrow->hasShadow = json["has_shadow"].toBool(false);
+        arrow->shadowDirection = static_cast<ShadowDirection>(json["shadow_dir"].toInt(0));
+        arrow->opacity = json["opacity"].toInt(100);
+        arrow->startSize = json["start_size"].toInt(3);
+        arrow->endSize = json["end_size"].toInt(3);
+        
         return arrow;
     } else if (objType == "shape") {
         QString st = json["shape_type"].toString("Rectangle");

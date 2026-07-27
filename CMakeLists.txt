@@ -103,6 +103,8 @@ set(EDITOR_SOURCES
     src/widgets/editor_thumbs.cpp
     src/widgets/editor_canvas.h
     src/widgets/editor_canvas.cpp
+    src/widgets/editor_arrow.h
+    src/widgets/editor_arrow.cpp
     ${SHARED_SOURCES}
 )
 

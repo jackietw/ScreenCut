@@ -4,6 +4,7 @@
  */
 
 #include "editor_props.h"
+#include "editor_arrow.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -25,13 +26,19 @@ EditorPropsPanel::EditorPropsPanel(QWidget* parent) : QWidget(parent) {
 }
 
 void EditorPropsPanel::setupUI() {
-    setFixedWidth(240);
+    setFixedWidth(260);
     setStyleSheet(R"(
         QWidget { background-color: #252525; color: #ffffff; }
         QLabel { color: #dddddd; font-size: 13px; font-weight: bold; }
         QSlider::groove:horizontal { height: 6px; background: #3c3c3c; border-radius: 3px; }
         QSlider::handle:horizontal { width: 14px; margin: -4px 0; background: #246bb2; border-radius: 7px; }
         QComboBox, QFontComboBox, QSpinBox { background: #333333; border: 1px solid #555555; border-radius: 4px; padding: 4px; color: white; }
+        QComboBox::drop-down, QFontComboBox::drop-down { border: none; width: 24px; }
+        QComboBox::down-arrow, QFontComboBox::down-arrow { 
+            image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxNicgaGVpZ2h0PScxNicgdmlld0JveD0nMCAwIDE2IDE2Jz48cGF0aCBmaWxsPSd3aGl0ZScgZD0nTTQgNmg4bC00IDV6Jy8+PC9zdmc+");
+            width: 16px;
+            height: 16px;
+        }
         QPushButton { background: #333333; border: 1px solid #555555; border-radius: 4px; padding: 6px; color: white; font-weight: bold; }
         QPushButton:hover { background: #444444; border-color: #246bb2; }
     )");
@@ -166,13 +173,259 @@ void EditorPropsPanel::createSizeSlider() {
 
 void EditorPropsPanel::createArrowProps() {
     m_arrowWidget = new QWidget(this);
-    QVBoxLayout* l = new QVBoxLayout(m_arrowWidget);
-    l->setContentsMargins(0,0,0,0);
-    l->addWidget(new QLabel("Arrow Type", m_arrowWidget));
-    m_arrowTypeCombo = new QComboBox(m_arrowWidget);
-    m_arrowTypeCombo->addItems({"Single Arrow", "Double Arrow", "Plain Line"});
-    connect(m_arrowTypeCombo, &QComboBox::currentTextChanged, this, &EditorPropsPanel::arrowTypeChanged);
-    l->addWidget(m_arrowTypeCombo);
+    QVBoxLayout* mainLayout = new QVBoxLayout(m_arrowWidget);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(12);
+
+    auto createSectionTitle = [](const QString& title) -> QWidget* {
+        QWidget* w = new QWidget();
+        w->setStyleSheet("background-color: #333333; border-top: 1px solid #444; border-bottom: 1px solid #444;");
+        QHBoxLayout* l = new QHBoxLayout(w);
+        l->setContentsMargins(8, 4, 8, 4);
+        QLabel* label = new QLabel(title);
+        label->setStyleSheet("font-weight: bold; color: #ddd; border: none; background: transparent;");
+        l->addWidget(label, 0, Qt::AlignCenter);
+        return w;
+    };
+
+    auto pickColor = [this](QPushButton* sourceBtn, const QColor& initial, std::function<void(const QColor&)> onSelected) {
+        QMenu* menu = new QMenu(this);
+        QWidget* container = new QWidget();
+        QVBoxLayout* layout = new QVBoxLayout(container);
+        layout->setContentsMargins(8, 8, 8, 8);
+        layout->setSpacing(8);
+
+        // Top: Transparent + Basic Colors
+        QHBoxLayout* topLayout = new QHBoxLayout();
+        topLayout->setSpacing(4);
+        
+        struct Preset { QString name; QColor color; };
+        std::vector<Preset> presets = {
+            {"", Qt::black},
+            {"", Qt::white},
+            {"", QColor("#ef4444")},
+            {"", QColor("#22c55e")},
+            {"", QColor("#3b82f6")},
+            {"", QColor("#eab308")}
+        };
+        
+        for (const auto& p : presets) {
+            QPushButton* b = new QPushButton(p.name);
+            b->setFixedSize(24, 24);
+            QString css = "QPushButton { border: 1px solid #ccc; border-radius: 12px; ";
+            css += QString("background-color: %1; }").arg(p.color.name());
+            b->setStyleSheet(css);
+            connect(b, &QPushButton::clicked, [menu, onSelected, p]() {
+                onSelected(p.color);
+                menu->close();
+            });
+            topLayout->addWidget(b);
+        }
+        topLayout->addStretch();
+        layout->addLayout(topLayout);
+
+        // Middle & Bottom: QColorDialog
+        QColor startColor = initial;
+        if (startColor.alpha() == 0) startColor.setAlpha(255);
+        QColorDialog* cd = new QColorDialog(startColor, container);
+        cd->setWindowFlags(Qt::Widget);
+        cd->setOptions(QColorDialog::DontUseNativeDialog | QColorDialog::ShowAlphaChannel | QColorDialog::NoButtons);
+        connect(cd, &QColorDialog::currentColorChanged, [onSelected](const QColor& c){
+            if (c.isValid()) onSelected(c);
+        });
+        layout->addWidget(cd);
+
+        QWidgetAction* action = new QWidgetAction(menu);
+        action->setDefaultWidget(container);
+        menu->addAction(action);
+        
+        menu->exec(sourceBtn->mapToGlobal(QPoint(0, sourceBtn->height())));
+        menu->deleteLater();
+    };
+
+    // --- TOOL PROPERTIES ---
+    mainLayout->addWidget(createSectionTitle("Tool Properties"));
+    
+    // Color & Shadow
+    QHBoxLayout* colorShadowLayout = new QHBoxLayout();
+    
+    QVBoxLayout* colorLayout = new QVBoxLayout();
+    colorLayout->addWidget(new QLabel("Color", m_arrowWidget), 0, Qt::AlignCenter);
+    m_btnArrowColor = new QPushButton();
+    m_btnArrowColor->setFixedSize(40, 40);
+    m_btnArrowColor->setStyleSheet("border: 1px solid #94a3b8; border-radius: 4px; background-color: #ef4444;");
+    colorLayout->addWidget(m_btnArrowColor, 0, Qt::AlignCenter);
+    colorShadowLayout->addLayout(colorLayout);
+    
+    connect(m_btnArrowColor, &QPushButton::clicked, this, [this, pickColor](){
+        pickColor(m_btnArrowColor, m_selectedColor, [this](const QColor& c){
+            m_selectedColor = c;
+            m_btnArrowColor->setStyleSheet(QString("border: 1px solid #94a3b8; border-radius: 4px; background-color: %1;").arg(c.name()));
+            emit colorChanged(c);
+        });
+    });
+
+    QVBoxLayout* shadowLayout = new QVBoxLayout();
+    shadowLayout->addWidget(new QLabel("Shadow", m_arrowWidget), 0, Qt::AlignCenter);
+    m_btnArrowShadow = new QPushButton("▦");
+    m_btnArrowShadow->setFixedSize(40, 40);
+    m_btnArrowShadow->setStyleSheet("QPushButton { font-size: 24px; border: 1px solid #94a3b8; border-radius: 4px; background-color: #333; color: #aaa; }");
+    shadowLayout->addWidget(m_btnArrowShadow, 0, Qt::AlignCenter);
+    colorShadowLayout->addLayout(shadowLayout);
+    
+    // Toggle shadow on/off
+    connect(m_btnArrowShadow, &QPushButton::clicked, this, [this](){
+        // For simplicity, we toggle between None and BottomRight
+        bool hasShadow = (m_arrowShadowDirection == ShadowDirection::None);
+        m_arrowShadowDirection = hasShadow ? ShadowDirection::BottomRight : ShadowDirection::None;
+        
+        m_btnArrowShadow->setStyleSheet(QString("QPushButton { font-size: 24px; border: 1px solid #94a3b8; border-radius: 4px; background-color: %1; color: %2; }")
+            .arg(hasShadow ? "#bfdbfe" : "#333").arg(hasShadow ? "#000" : "#aaa"));
+            
+        emit arrowHasShadowChanged(hasShadow);
+        emit arrowShadowDirectionChanged(m_arrowShadowDirection);
+    });
+    
+    mainLayout->addLayout(colorShadowLayout);
+    
+    // Line style row
+    QVBoxLayout* lineStyleLayout = new QVBoxLayout();
+    
+    // Lambda to draw line style icons
+    auto createLineIcon = [](Qt::PenStyle style) -> QIcon {
+        QPixmap pixmap(100, 20);
+        pixmap.fill(Qt::transparent);
+        QPainter p(&pixmap);
+        p.setRenderHint(QPainter::Antialiasing);
+        QPen pen(Qt::white, 3, style, Qt::FlatCap, Qt::MiterJoin);
+        p.setPen(pen);
+        p.drawLine(10, 10, 90, 10);
+        return QIcon(pixmap);
+    };
+
+    // Lambda to draw arrow head icons
+    auto createArrowIcon = [](const QString& type, bool isStart) -> QIcon {
+        QPixmap pixmap(60, 20);
+        pixmap.fill(Qt::transparent);
+        QPainter p(&pixmap);
+        p.setRenderHint(QPainter::Antialiasing);
+        
+        ArrowStyle style;
+        style.color = Qt::white;
+        style.lineWidth = 2.0;
+        style.penStyle = Qt::SolidLine;
+        
+        if (isStart) {
+            style.startHead = ArrowPainter::stringToArrowHead(type);
+            style.endHead = ArrowHead::None;
+        } else {
+            style.startHead = ArrowHead::None;
+            style.endHead = ArrowPainter::stringToArrowHead(type);
+        }
+        
+        ArrowPainter::draw(p, QPointF(10, 10), QPointF(50, 10), style);
+        
+        return QIcon(pixmap);
+    };
+    
+    auto populateArrowCombo = [&](QComboBox* combo, bool isStart) {
+        combo->setIconSize(QSize(60, 20));
+        const QStringList styles = {
+            "None", "Open", "Triangle", "FilledTriangle", 
+            "Diamond", "FilledDiamond", "Circle", "FilledCircle", 
+            "Square", "FilledSquare", "Tee"
+        };
+        for (const QString& style : styles) {
+            combo->addItem(createArrowIcon(style, isStart), "", style);
+        }
+    };
+    
+    QHBoxLayout* topRow = new QHBoxLayout();
+    m_arrowStartStyleCombo = new QComboBox();
+    populateArrowCombo(m_arrowStartStyleCombo, true);
+    
+    m_arrowEndStyleCombo = new QComboBox();
+    populateArrowCombo(m_arrowEndStyleCombo, false);
+    
+    connect(m_arrowStartStyleCombo, &QComboBox::currentIndexChanged, this, [this](int /*index*/) {
+        emit arrowStartStyleChanged(m_arrowStartStyleCombo->currentData().toString());
+    });
+    connect(m_arrowEndStyleCombo, &QComboBox::currentIndexChanged, this, [this](int /*index*/) {
+        emit arrowEndStyleChanged(m_arrowEndStyleCombo->currentData().toString());
+    });
+    
+    topRow->addWidget(m_arrowStartStyleCombo);
+    topRow->addWidget(m_arrowEndStyleCombo);
+    
+    m_arrowLineStyleCombo = new QComboBox();
+    m_arrowLineStyleCombo->setIconSize(QSize(100, 20));
+    m_arrowLineStyleCombo->addItem(createLineIcon(Qt::SolidLine), "", "Solid");
+    m_arrowLineStyleCombo->addItem(createLineIcon(Qt::DashLine), "", "Dashed");
+    m_arrowLineStyleCombo->addItem(createLineIcon(Qt::DotLine), "", "Dotted");
+    m_arrowLineStyleCombo->addItem(createLineIcon(Qt::DashDotLine), "", "DashDot");
+    
+    connect(m_arrowLineStyleCombo, &QComboBox::currentIndexChanged, this, [this](int /*index*/) {
+        emit arrowLineStyleChanged(m_arrowLineStyleCombo->currentData().toString());
+    });
+    
+    // We will repurpose m_arrowTypeCombo as the backend type for backward compatibility,
+    // but the UI will interact with the new combos.
+    m_arrowTypeCombo = new QComboBox();
+    m_arrowTypeCombo->addItems({"Custom"}); // We force it to Custom so it respects our new properties
+    m_arrowTypeCombo->hide(); 
+    
+    lineStyleLayout->addLayout(topRow);
+    lineStyleLayout->addWidget(m_arrowLineStyleCombo);
+    
+    mainLayout->addLayout(lineStyleLayout);
+
+    // Sliders Helper
+    auto addSliderRow = [&](const QString& label, QSlider*& slider, QLabel*& valLabel, int min, int max, int val, const QString& suffix) {
+        QHBoxLayout* hLayout = new QHBoxLayout();
+        QLabel* title = new QLabel(label);
+        title->setFixedWidth(60);
+        title->setStyleSheet("font-size: 12px; font-weight: normal;");
+        hLayout->addWidget(title);
+        
+        slider = new QSlider(Qt::Horizontal);
+        slider->setRange(min, max);
+        slider->setValue(val);
+        hLayout->addWidget(slider);
+        
+        valLabel = new QLabel(QString::number(val) + suffix);
+        valLabel->setFixedWidth(40);
+        valLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        valLabel->setStyleSheet("background-color: #1e1e1e; border: 1px solid #444; border-radius: 4px; padding: 2px; font-size: 12px; font-weight: normal;");
+        hLayout->addWidget(valLabel);
+        
+        mainLayout->addLayout(hLayout);
+    };
+    
+    addSliderRow("Width", m_arrowWidthSlider, m_arrowWidthLabel, 1, 40, m_currentWidth, "");
+    connect(m_arrowWidthSlider, &QSlider::valueChanged, this, [this](int value) {
+        m_currentWidth = value;
+        m_arrowWidthLabel->setText(QString::number(value));
+        emit lineWidthChanged(value);
+    });
+    
+    addSliderRow("Opacity", m_arrowOpacitySlider, m_arrowOpacityLabel, 0, 100, 100, "%");
+    connect(m_arrowOpacitySlider, &QSlider::valueChanged, this, [this](int value) {
+        m_arrowOpacityLabel->setText(QString::number(value) + "%");
+        emit arrowOpacityChanged(value);
+    });
+
+    addSliderRow("Start Size", m_arrowStartSizeSlider, m_arrowStartSizeLabel, 1, 10, 3, "");
+    connect(m_arrowStartSizeSlider, &QSlider::valueChanged, this, [this](int value) {
+        m_arrowStartSizeLabel->setText(QString::number(value));
+        emit arrowStartSizeChanged(value);
+    });
+
+    addSliderRow("End Size", m_arrowEndSizeSlider, m_arrowEndSizeLabel, 1, 10, 3, "");
+    connect(m_arrowEndSizeSlider, &QSlider::valueChanged, this, [this](int value) {
+        m_arrowEndSizeLabel->setText(QString::number(value));
+        emit arrowEndSizeChanged(value);
+    });
+
     m_mainLayout->addWidget(m_arrowWidget);
 }
 
@@ -211,80 +464,6 @@ void EditorPropsPanel::createTextProps() {
         l->addWidget(label, 0, Qt::AlignCenter);
         return w;
     };
-
-    // --- QUICK STYLES ---
-    mainLayout->addWidget(createSectionTitle("Quick Styles"));
-    
-
-    // Quick Styles Grid
-    QGridLayout* stylesGrid = new QGridLayout();
-    stylesGrid->setSpacing(4);
-    
-    struct QuickStyle { QColor fill; QColor outline; int outlineWidth; ShadowDirection shadow; };
-    std::vector<QuickStyle> quickStyles = {
-        {QColor("#ef4444"), Qt::transparent, 0, ShadowDirection::None},      // Flat Red
-        {QColor("#3b82f6"), Qt::transparent, 0, ShadowDirection::None},      // Flat Blue
-        {QColor("#22c55e"), Qt::transparent, 0, ShadowDirection::None},      // Flat Green
-        {QColor("#eab308"), Qt::transparent, 0, ShadowDirection::None},      // Flat Yellow
-        
-        {Qt::white, QColor("#ef4444"), 2, ShadowDirection::BottomRight},     // White with Red Outline + Shadow
-        {Qt::white, QColor("#3b82f6"), 2, ShadowDirection::BottomRight},     // White with Blue Outline + Shadow
-        {Qt::white, QColor("#22c55e"), 2, ShadowDirection::BottomRight},     // White with Green Outline + Shadow
-        {Qt::white, QColor("#eab308"), 2, ShadowDirection::BottomRight},     // White with Yellow Outline + Shadow
-        
-        {QColor("#ef4444"), Qt::white, 2, ShadowDirection::BottomRight},     // Red with White Outline + Shadow
-        {QColor("#3b82f6"), Qt::white, 2, ShadowDirection::BottomRight},     // Blue with White Outline + Shadow
-        {QColor("#22c55e"), Qt::white, 2, ShadowDirection::BottomRight},     // Green with White Outline + Shadow
-        {QColor("#eab308"), Qt::white, 2, ShadowDirection::BottomRight}      // Yellow with White Outline + Shadow
-    };
-    
-    for (int i = 0; i < 12; ++i) {
-        QPushButton* presetBtn = new QPushButton("A");
-        presetBtn->setFixedSize(36, 36);
-        
-        QString css = QString("QPushButton { font-weight: bold; font-size: 20px; border-radius: 4px; ");
-        if (quickStyles[i].fill == Qt::transparent) css += "background-color: white; color: black; ";
-        else css += QString("background-color: %1; color: %2; ")
-                    .arg(quickStyles[i].fill.name())
-                    .arg(quickStyles[i].fill == Qt::white ? "black" : "white");
-        
-        if (quickStyles[i].outlineWidth > 0 && quickStyles[i].outline != Qt::transparent) {
-            css += QString("border: %1px solid %2; ").arg(quickStyles[i].outlineWidth).arg(quickStyles[i].outline.name());
-        } else {
-            css += "border: 1px solid #ccc; ";
-        }
-        css += "}";
-        
-        presetBtn->setStyleSheet(css);
-        connect(presetBtn, &QPushButton::clicked, this, [this, i, quickStyles](){
-            const auto& qs = quickStyles[i];
-            
-            // Apply Fill
-            m_selectedColor = qs.fill;
-            if(m_btnTextFill) m_btnTextFill->setStyleSheet(QString("border: 1px solid #94a3b8; border-radius: 4px; background-color: %1;")
-                .arg(qs.fill == Qt::transparent ? "transparent" : qs.fill.name()));
-            emit colorChanged(m_selectedColor);
-            
-            // Apply Outline
-            m_textOutlineColor = qs.outline;
-            if(m_btnTextOutline) m_btnTextOutline->setStyleSheet(QString("border: 1px solid #94a3b8; border-radius: 4px; background-color: %1;")
-                .arg(qs.outline == Qt::transparent ? "transparent" : qs.outline.name()));
-            emit textOutlineColorChanged(m_textOutlineColor);
-            
-            if(m_textLineWidthSlider) m_textLineWidthSlider->setValue(qs.outlineWidth);
-            
-            // Apply Shadow
-            m_textShadowDirection = qs.shadow;
-            m_textHasShadow = (qs.shadow != ShadowDirection::None);
-            if(m_btnTextShadow) m_btnTextShadow->setStyleSheet(QString("border: 1px solid #94a3b8; border-radius: 4px; background-color: %1;")
-                .arg(m_textHasShadow ? "#bfdbfe" : "white"));
-            emit textHasShadowChanged(m_textHasShadow);
-            emit textShadowDirectionChanged(m_textShadowDirection);
-        });
-        stylesGrid->addWidget(presetBtn, i / 4, i % 4);
-    }
-    mainLayout->addLayout(stylesGrid);
-
     // --- TOOL PROPERTIES ---
     mainLayout->addWidget(createSectionTitle("Tool Properties"));
 
@@ -658,7 +837,11 @@ void EditorPropsPanel::updateVisibility(ToolType type) {
 
     switch (type) {
         case ToolType::None: showColor = false; showSize = false; break;
-        case ToolType::Arrow: m_arrowWidget->setVisible(true); break;
+        case ToolType::Arrow: 
+            m_arrowWidget->setVisible(true); 
+            showColor = false;
+            showSize = false;
+            break;
         case ToolType::Rectangle:
         case ToolType::Ellipse: m_shapeWidget->setVisible(true); break;
         case ToolType::Text: 
@@ -728,7 +911,50 @@ void EditorPropsPanel::syncFromSelection(const std::shared_ptr<AnnotationItem>& 
     if (m_btnStrikeOut) m_btnStrikeOut->blockSignals(true);
     
     if (item->getType() == ToolType::Arrow) {
-        m_arrowTypeCombo->setCurrentText(std::static_pointer_cast<ArrowAnnotation>(item)->arrowType);
+        auto arrow = std::static_pointer_cast<ArrowAnnotation>(item);
+        m_arrowTypeCombo->setCurrentText(arrow->arrowType);
+        
+        auto getComboIdx = [](QComboBox* combo, const QString& style) {
+            int idx = combo->findData(style);
+            if (idx == -1) {
+                if (style == "Arrow") idx = combo->findData("FilledTriangle");
+                else if (style == "Circle") idx = combo->findData("FilledCircle");
+                else if (style == "Square") idx = combo->findData("FilledSquare");
+            }
+            return idx;
+        };
+        
+        m_arrowStartStyleCombo->setCurrentIndex(getComboIdx(m_arrowStartStyleCombo, arrow->startStyle));
+        m_arrowEndStyleCombo->setCurrentIndex(getComboIdx(m_arrowEndStyleCombo, arrow->endStyle));
+        m_arrowLineStyleCombo->setCurrentIndex(m_arrowLineStyleCombo->findData(arrow->lineStyle));
+        
+        m_arrowWidthSlider->blockSignals(true);
+        m_arrowWidthSlider->setValue(arrow->lineWidth);
+        m_arrowWidthLabel->setText(QString::number(arrow->lineWidth));
+        m_arrowWidthSlider->blockSignals(false);
+        
+        m_arrowOpacitySlider->blockSignals(true);
+        m_arrowOpacitySlider->setValue(arrow->opacity);
+        m_arrowOpacityLabel->setText(QString::number(arrow->opacity) + "%");
+        m_arrowOpacitySlider->blockSignals(false);
+        
+        m_arrowStartSizeSlider->blockSignals(true);
+        m_arrowStartSizeSlider->setValue(arrow->startSize);
+        m_arrowStartSizeLabel->setText(QString::number(arrow->startSize));
+        m_arrowStartSizeSlider->blockSignals(false);
+        
+        m_arrowEndSizeSlider->blockSignals(true);
+        m_arrowEndSizeSlider->setValue(arrow->endSize);
+        m_arrowEndSizeLabel->setText(QString::number(arrow->endSize));
+        m_arrowEndSizeSlider->blockSignals(false);
+        
+        m_arrowShadowDirection = arrow->shadowDirection;
+        bool hasShadow = arrow->hasShadow;
+        m_btnArrowShadow->setStyleSheet(QString("QPushButton { font-size: 24px; border: 1px solid #94a3b8; border-radius: 4px; background-color: %1; color: %2; }")
+            .arg(hasShadow ? "#bfdbfe" : "#333").arg(hasShadow ? "#000" : "#aaa"));
+        
+        m_btnArrowColor->setStyleSheet(QString("border: 1px solid #94a3b8; border-radius: 4px; background-color: %1;").arg(arrow->color.name()));
+
     } else if (item->getType() == ToolType::Rectangle || item->getType() == ToolType::Ellipse) {
         auto shape = std::static_pointer_cast<ShapeAnnotation>(item);
         m_shapeStyleCombo->setCurrentText(shape->shapeStyle);
@@ -831,6 +1057,17 @@ void EditorPropsPanel::syncFromSelection(const QColor& color, int width) {
     m_widthSlider->setValue(width);
     m_widthLabel->setText(QString::number(width));
     m_widthSlider->blockSignals(false);
+    
+    if (m_arrowWidthSlider) {
+        m_arrowWidthSlider->blockSignals(true);
+        m_arrowWidthSlider->setValue(width);
+        m_arrowWidthLabel->setText(QString::number(width));
+        m_arrowWidthSlider->blockSignals(false);
+    }
+    
+    if (m_btnArrowColor) {
+        m_btnArrowColor->setStyleSheet(QString("border: 1px solid #94a3b8; border-radius: 4px; background-color: %1;").arg(color.name()));
+    }
 
     for (QPushButton* btn : m_colorButtons) {
         QColor c = btn->property("color").value<QColor>();
