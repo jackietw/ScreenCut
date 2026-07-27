@@ -20,6 +20,8 @@
 #include "../core/common_project.h"
 #include "../widgets/common_notification.h"
 #include <QTimer>
+#include <QProcess>
+#include <QCoreApplication>
 
 namespace ScreenCut {
 
@@ -133,12 +135,27 @@ void EditorMainWindow::initUI() {
     // Wiring Toolbar <-> Canvas <-> Props
     connect(m_toolBar, &EditorToolBar::toolSelected, m_canvas, &EditorCanvas::setTool);
     connect(m_toolBar, &EditorToolBar::toolSelected, m_propsPanel, &EditorPropsPanel::setCurrentTool);
+    connect(m_toolBar, &EditorToolBar::toolSelected, this, [this](ToolType tool) {
+        if (tool == ToolType::Crop) {
+            m_propsDock->hide();
+        } else {
+            m_propsDock->show();
+        }
+    });
     
     connect(m_propsPanel, &EditorPropsPanel::colorChanged, m_canvas, &EditorCanvas::setColor);
     connect(m_propsPanel, &EditorPropsPanel::lineWidthChanged, m_canvas, &EditorCanvas::setLineWidth);
 
     connect(m_toolBar, &EditorToolBar::undoClicked, m_canvas, &EditorCanvas::undo);
     connect(m_toolBar, &EditorToolBar::redoClicked, m_canvas, &EditorCanvas::redo);
+    connect(m_canvas, &EditorCanvas::toolChanged, m_toolBar, &EditorToolBar::setActiveTool);
+    connect(m_toolBar, &EditorToolBar::captureClicked, this, []() {
+        QString captureAppPath = QCoreApplication::applicationDirPath() + "/ScreenCut";
+#ifdef Q_OS_WIN
+        captureAppPath += ".exe";
+#endif
+        QProcess::startDetached(captureAppPath, QStringList());
+    });
     
     connect(m_canvas, &EditorCanvas::historyChanged, this, [this]() {
         m_toolBar->updateUndoRedoState(m_canvas->canUndo(), m_canvas->canRedo());

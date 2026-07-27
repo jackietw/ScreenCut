@@ -55,14 +55,26 @@ void EditorToolBar::setupUI() {
         }
     });
 
+    m_captureAction = addAction(createSvgIcon(SVG_APP_ICON), "Capture");
+    connect(m_captureAction, &QAction::triggered, this, &EditorToolBar::captureClicked);
+    
+    addSeparator();
+
     addToolAction(SVG_SELECT, ToolType::None, "Select", "Select (V)");
     addSeparator();
     addToolAction(SVG_ARROW, ToolType::Arrow, "Arrow", "Arrow (A)");
     addToolAction(SVG_TEXT, ToolType::Text, "Text", "Text (T)");
     addToolAction(SVG_SHAPE, ToolType::Rectangle, "Shape", "Shape (R)");
+    addToolAction(SVG_STAMP, ToolType::Stamp, "Stamp", "Stamp (Reserved)");
+    addToolAction(SVG_CROP, ToolType::Crop, "Crop", "Crop (C)");
     addToolAction(SVG_BLUR, ToolType::Mosaic, "Blur", "Blur (B)");
     addToolAction(SVG_PEN, ToolType::Freehand, "Pen", "Pen (P)");
     addToolAction(SVG_STEP, ToolType::StepMarker, "Step", "Step Marker (S)");
+
+    // Disable Stamp for now as requested (reserved feature)
+    if (auto actionsList = m_toolGroup->actions(); actionsList.size() > 4) {
+        actionsList[4]->setEnabled(false); // Stamp is the 5th tool (index 4)
+    }
 
     // Default select arrow
     if (auto actionsList = m_toolGroup->actions(); actionsList.size() > 1) {
@@ -107,6 +119,15 @@ void EditorToolBar::addToolAction(const QString& svg, ToolType type, const QStri
 void EditorToolBar::updateUndoRedoState(bool canUndo, bool canRedo) {
     m_undoAction->setEnabled(canUndo);
     m_redoAction->setEnabled(canRedo);
+}
+
+void EditorToolBar::setActiveTool(ToolType tool) {
+    for (QAction* action : m_toolGroup->actions()) {
+        if (action->data().value<int>() == static_cast<int>(tool)) {
+            action->setChecked(true);
+            break;
+        }
+    }
 }
 
 } // namespace ScreenCut

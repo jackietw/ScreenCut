@@ -12,6 +12,7 @@
 #include <vector>
 #include <memory>
 #include <QString>
+#include <QPushButton>
 #include "../editor/editor_models.h"
 
 class QTextEdit;
@@ -55,6 +56,10 @@ public:
     void setPenStyle(const QString& style);
     void resetStepCounter();
 
+    void applyCrop();
+    void cancelCrop();
+    void updateOverlayPosition();
+
     bool canUndo() const { return !m_undoStack.empty(); }
     bool canRedo() const { return !m_redoStack.empty(); }
     void undo();
@@ -80,6 +85,7 @@ signals:
     void zoomChanged(qreal zoom);
     void itemSelected(std::shared_ptr<AnnotationItem> item);
     void fontSizeChanged(int size);
+    void toolChanged(ToolType tool);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -138,8 +144,21 @@ private:
     bool m_isDrawing = false;
     bool m_isDragging = false;
     bool m_isCanvasResizing = false;
+    
+    // Crop state
+    bool m_isCroppingMode = false;
+    bool m_isCroppingDrag = false;
+    QRect m_cropRect;
+    int m_cropActiveHandle = -1;
+    QPoint m_lastCropDragPoint;
+    QWidget* m_cropOverlayWidget = nullptr;
+    QPushButton* m_btnCrop = nullptr;
+    QPushButton* m_btnCancelCrop = nullptr;
+
     int m_activeHandle = -1;
     int m_canvasActiveHandle = -1;
+    int hitTestCropHandle(const QPoint& pos) const;
+    
     QPoint m_startPoint;
     QPoint m_startGlobalPos;
     

@@ -21,9 +21,11 @@ public:
     ~EditorToolBar() override = default;
 
     void updateUndoRedoState(bool canUndo, bool canRedo);
+    void setActiveTool(ToolType tool);
 
 signals:
     void toolSelected(ToolType tool);
+    void captureClicked();
     void undoClicked();
     void redoClicked();
     void copyClicked();
@@ -34,6 +36,7 @@ private:
     void addToolAction(const QString& svg, ToolType type, const QString& text, const QString& tooltip);
 
     QActionGroup* m_toolGroup = nullptr;
+    QAction* m_captureAction = nullptr;
     QAction* m_undoAction = nullptr;
     QAction* m_redoAction = nullptr;
     QAction* m_copyAction = nullptr;

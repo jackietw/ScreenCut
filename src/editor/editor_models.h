@@ -29,7 +29,9 @@ enum class ToolType {
     StepMarker,
     Mosaic,
     Blur,
-    Highlight
+    Highlight,
+    Stamp,
+    Crop
 };
 
 enum class ShadowDirection {

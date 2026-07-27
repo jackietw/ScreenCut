@@ -9,6 +9,8 @@
 #include <QInputDialog>
 #include <QTextEdit>
 #include <QKeyEvent>
+#include <QHBoxLayout>
+#include <QPushButton>
 
 namespace ScreenCut {
 
@@ -28,6 +30,26 @@ EditorCanvas::EditorCanvas(const QPixmap& background, QWidget* parent)
     if (!m_background.isNull()) {
         setFixedSize(m_background.size());
     }
+
+    // Initialize Crop Overlay Widget
+    m_cropOverlayWidget = new QWidget(this);
+    m_cropOverlayWidget->setStyleSheet("QWidget { background-color: #2b2b2b; border-radius: 4px; border: 1px solid #444; }");
+    QHBoxLayout* cropLayout = new QHBoxLayout(m_cropOverlayWidget);
+    cropLayout->setContentsMargins(4, 4, 4, 4);
+    cropLayout->setSpacing(8);
+    
+    m_btnCrop = new QPushButton("Crop", m_cropOverlayWidget);
+    m_btnCrop->setStyleSheet("QPushButton { background-color: #246bb2; color: white; border: none; border-radius: 4px; padding: 6px 16px; font-weight: bold; } QPushButton:hover { background-color: #357ebd; }");
+    
+    m_btnCancelCrop = new QPushButton("Cancel", m_cropOverlayWidget);
+    m_btnCancelCrop->setStyleSheet("QPushButton { background-color: #444; color: white; border: none; border-radius: 4px; padding: 6px 16px; } QPushButton:hover { background-color: #555; }");
+    
+    cropLayout->addWidget(m_btnCrop);
+    cropLayout->addWidget(m_btnCancelCrop);
+    m_cropOverlayWidget->hide();
+
+    connect(m_btnCrop, &QPushButton::clicked, this, &EditorCanvas::applyCrop);
+    connect(m_btnCancelCrop, &QPushButton::clicked, this, &EditorCanvas::cancelCrop);
 }
 
 EditorCanvas::~EditorCanvas() = default;
@@ -53,7 +75,21 @@ void EditorCanvas::setZoom(qreal zoom) {
 }
 
 void EditorCanvas::setTool(ToolType tool) {
+    if (m_currentTool == ToolType::Crop && tool != ToolType::Crop) {
+        m_isCroppingMode = false;
+        m_cropOverlayWidget->hide();
+        update();
+    }
+    
     m_currentTool = tool;
+    
+    if (m_currentTool == ToolType::Crop) {
+        m_isCroppingMode = true;
+        // Start with empty rect, user must drag to create one
+        m_cropRect = QRect();
+        m_cropOverlayWidget->hide(); // Hide until rect is drawn
+        update();
+    }
 }
 
 void EditorCanvas::setColor(const QColor& color) {
@@ -246,6 +282,68 @@ void EditorCanvas::resetStepCounter() {
     m_nextStepNumber = 1;
 }
 
+void EditorCanvas::applyCrop() {
+    if (!m_isCroppingMode) return;
+    
+    QRect r = m_cropRect.normalized().intersected(m_background.rect());
+    if (r.width() < 10 || r.height() < 10) {
+        cancelCrop();
+        return;
+    }
+    
+    saveToHistory();
+    
+    QPixmap newBg = m_background.copy(r);
+    m_background = newBg;
+    m_baseCanvasRect = QRect(0, 0, newBg.width(), newBg.height());
+    
+    QPoint offset = -r.topLeft();
+    for (auto& item : m_annotations) {
+        item->moveBy(offset);
+    }
+    
+    setZoom(m_zoomFactor); // re-apply size
+    updateAutoCanvasSize();
+    
+    // Switch to None tool (this will also hide overlay and reset mode via setTool)
+    emit toolChanged(ToolType::None); // Wait, EditorCanvas doesn't emit toolChanged. EditorMainWindow manages it.
+    // I should emit a signal or just find the toolbar and call setTool, or just call setTool locally. 
+    // Wait, EditorMainWindow sets the tool in toolbar.
+    // Let's just emit a signal for EditorMainWindow to know, or just call setTool(ToolType::None) locally.
+    setTool(ToolType::None); 
+}
+
+void EditorCanvas::cancelCrop() {
+    setTool(ToolType::None);
+}
+
+void EditorCanvas::updateOverlayPosition() {
+    if (!m_isCroppingMode || !m_cropOverlayWidget) return;
+    
+    QRect r = m_cropRect.normalized();
+    // Center below the crop rect
+    int scaledX = r.center().x() * m_zoomFactor;
+    int scaledY = r.bottom() * m_zoomFactor;
+    
+    m_cropOverlayWidget->adjustSize();
+    int w = m_cropOverlayWidget->width();
+    int h = m_cropOverlayWidget->height();
+    
+    int x = scaledX - w / 2;
+    int y = scaledY + 10;
+    
+    // Keep inside widget bounds
+    if (x < 0) x = 0;
+    if (x + w > width()) x = width() - w;
+    if (y + h > height()) {
+        // if below is too tight, put it inside the rect at the bottom
+        y = scaledY - h - 10;
+        if (y < 0) y = 0;
+    }
+    
+    m_cropOverlayWidget->move(x, y);
+}
+
 void EditorCanvas::saveToHistory() {
     HistoryState state;
     state.background = m_background;
@@ -359,8 +457,8 @@ void EditorCanvas::paintEvent(QPaintEvent* /*event*/) {
         }
     }
 
-    // Draw canvas handles in all modes (except while actively drawing)
-    if (!m_isDrawing && !m_background.isNull()) {
+    // Draw canvas handles in all modes (except while actively drawing or cropping)
+    if (!m_isDrawing && !m_background.isNull() && !m_isCroppingMode) {
         painter.setPen(QPen(QColor(0, 168, 255), 1));
         painter.setBrush(Qt::white);
         QRect r = m_background.rect();
@@ -376,6 +474,56 @@ void EditorCanvas::paintEvent(QPaintEvent* /*event*/) {
         painter.drawRect(midX - 4, r.bottom() - 8, 8, 8);
         painter.drawRect(0, midY - 4, 8, 8);
         painter.drawRect(r.right() - 8, midY - 4, 8, 8);
+    }
+    
+    // Draw Crop Mode Overlay
+    if (m_isCroppingMode) {
+        QColor overlayColor(0, 0, 0, 128); // 50% black
+        QRect bgRect = m_background.rect();
+        
+        if (m_cropRect.isValid() && m_cropRect.width() > 0 && m_cropRect.height() > 0) {
+            QRect r = m_cropRect.normalized();
+            
+            // Draw 4 rectangles around the crop rect to darken outside
+            painter.fillRect(QRect(bgRect.left(), bgRect.top(), bgRect.width(), r.top() - bgRect.top()), overlayColor); // Top
+            painter.fillRect(QRect(bgRect.left(), r.bottom(), bgRect.width(), bgRect.bottom() - r.bottom() + 1), overlayColor); // Bottom
+            painter.fillRect(QRect(bgRect.left(), r.top(), r.left() - bgRect.left(), r.height()), overlayColor); // Left
+            painter.fillRect(QRect(r.right(), r.top(), bgRect.right() - r.right() + 1, r.height()), overlayColor); // Right
+            
+            // Draw rule of thirds grid (九宮格參考線)
+            QPen gridPen(QColor(255, 255, 255, 128), 1, Qt::DashLine);
+            painter.setPen(gridPen);
+            painter.drawLine(r.left() + r.width() / 3, r.top(), r.left() + r.width() / 3, r.bottom());
+            painter.drawLine(r.left() + r.width() * 2 / 3, r.top(), r.left() + r.width() * 2 / 3, r.bottom());
+            painter.drawLine(r.left(), r.top() + r.height() / 3, r.right(), r.top() + r.height() / 3);
+            painter.drawLine(r.left(), r.top() + r.height() * 2 / 3, r.right(), r.top() + r.height() * 2 / 3);
+            
+            // Draw dashed border
+            QPen borderPen(Qt::white, 1, Qt::DashLine);
+            painter.setPen(borderPen);
+            painter.setBrush(Qt::NoBrush);
+            painter.drawRect(r);
+            
+            // Draw crop handles
+            painter.setPen(QPen(QColor(0, 168, 255), 1));
+            painter.setBrush(QColor(0, 168, 255));
+            
+            int s = 12; // Make handles larger (was 8)
+            painter.drawRect(r.left() - s/2, r.top() - s/2, s, s);
+            painter.drawRect(r.right() - s/2, r.top() - s/2, s, s);
+            painter.drawRect(r.left() - s/2, r.bottom() - s/2, s, s);
+            painter.drawRect(r.right() - s/2, r.bottom() - s/2, s, s);
+            
+            int midX = r.center().x();
+            int midY = r.center().y();
+            painter.drawRect(midX - s/2, r.top() - s/2, s, s);
+            painter.drawRect(midX - s/2, r.bottom() - s/2, s, s);
+            painter.drawRect(r.left() - s/2, midY - s/2, s, s);
+            painter.drawRect(r.right() - s/2, midY - s/2, s, s);
+        } else {
+            // No crop rect yet, just dim the whole image
+            painter.fillRect(bgRect, overlayColor);
+        }
     }
 }
 
@@ -515,6 +663,26 @@ int EditorCanvas::hitTestCanvasHandle(const QPoint& pos) const {
     return -1;
 }
 
+int EditorCanvas::hitTestCropHandle(const QPoint& pos) const {
+    if (!m_isCroppingMode) return -1;
+    QRect r = m_cropRect;
+    int midX = r.center().x();
+    int midY = r.center().y();
+    
+    int hs = 16; // Hit test size (larger than visual size for easier clicking)
+    int hhs = hs / 2;
+    
+    if (QRect(r.left() - hhs, r.top() - hhs, hs, hs).contains(pos)) return 1;
+    if (QRect(r.right() - hhs, r.top() - hhs, hs, hs).contains(pos)) return 2;
+    if (QRect(r.right() - hhs, r.bottom() - hhs, hs, hs).contains(pos)) return 3;
+    if (QRect(r.left() - hhs, r.bottom() - hhs, hs, hs).contains(pos)) return 4;
+    if (QRect(midX - hhs, r.top() - hhs, hs, hs).contains(pos)) return 5;
+    if (QRect(midX - hhs, r.bottom() - hhs, hs, hs).contains(pos)) return 6;
+    if (QRect(r.left() - hhs, midY - hhs, hs, hs).contains(pos)) return 7;
+    if (QRect(r.right() - hhs, midY - hhs, hs, hs).contains(pos)) return 8;
+    return -1;
+}
+
 bool EditorCanvas::eventFilter(QObject* obj, QEvent* event) {
     if (obj == m_textInput && event->type() == QEvent::KeyPress) {
         QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
@@ -538,6 +706,31 @@ void EditorCanvas::mousePressEvent(QMouseEvent* event) {
 
     m_startPoint = mapToImage(event->pos());
     m_currentPoint = m_startPoint;
+
+    // 0. Check Crop mode handles
+    if (m_isCroppingMode) {
+        if (m_cropOverlayWidget) m_cropOverlayWidget->hide(); // Hide widget during drag
+        
+        if (m_cropRect.isValid()) {
+            int handle = hitTestCropHandle(m_startPoint);
+            if (handle != -1) {
+                m_isCroppingDrag = true;
+                m_cropActiveHandle = handle;
+                return;
+            }
+            if (m_cropRect.contains(m_startPoint)) {
+                m_isCroppingDrag = true;
+                m_cropActiveHandle = -1; // -1 means dragging the whole rect
+                m_lastCropDragPoint = m_startPoint;
+                return;
+            }
+        }
+        // If clicking outside crop rect or no crop rect yet, start drawing a new crop rect
+        m_cropRect = QRect(m_startPoint, m_startPoint);
+        m_isCroppingDrag = true;
+        m_cropActiveHandle = 9; // 9 means drawing new crop rect
+        return;
+    }
 
     // 1. Check annotation handles first (even if not in None tool)
     if (m_selectedItem) {
@@ -659,20 +852,78 @@ void EditorCanvas::mouseMoveEvent(QMouseEvent* event) {
     emit mousePositionChanged(m_currentPoint);
 
     if (event->buttons() == Qt::NoButton) {
+        if (m_isCroppingMode && m_cropRect.isValid()) {
+            int handle = hitTestCropHandle(m_currentPoint);
+            if (handle != -1) {
+                if (handle == 1 || handle == 3) setCursor(Qt::SizeFDiagCursor); // Top-Left, Bottom-Right
+                else if (handle == 2 || handle == 4) setCursor(Qt::SizeBDiagCursor); // Top-Right, Bottom-Left
+                else if (handle == 5 || handle == 6) setCursor(Qt::SizeVerCursor); // Top, Bottom
+                else if (handle == 7 || handle == 8) setCursor(Qt::SizeHorCursor); // Left, Right
+            } else if (m_cropRect.contains(m_currentPoint)) {
+                setCursor(Qt::SizeAllCursor); // Move crop rect
+            } else {
+                setCursor(Qt::CrossCursor); // Draw new crop rect
+            }
+            return;
+        }
+
         int handle = hitTestCanvasHandle(m_currentPoint);
         if (handle == -1 && m_currentTool == ToolType::None && m_selectedItem) {
             handle = m_selectedItem->hitTestHandle(m_currentPoint);
         }
         
         if (handle != -1) {
-            if (handle == 1 || handle == 3) setCursor(Qt::SizeFDiagCursor); // Top-Left, Bottom-Right
-            else if (handle == 2 || handle == 4) setCursor(Qt::SizeBDiagCursor); // Top-Right, Bottom-Left
-            else if (handle == 5 || handle == 6) setCursor(Qt::SizeVerCursor); // Top, Bottom
-            else if (handle == 7 || handle == 8) setCursor(Qt::SizeHorCursor); // Left, Right
+            if (handle == 1 || handle == 3) setCursor(Qt::SizeFDiagCursor);
+            else if (handle == 2 || handle == 4) setCursor(Qt::SizeBDiagCursor);
+            else if (handle == 5 || handle == 6) setCursor(Qt::SizeVerCursor);
+            else if (handle == 7 || handle == 8) setCursor(Qt::SizeHorCursor);
         } else {
             if (m_currentTool == ToolType::None) setCursor(Qt::ArrowCursor);
             else setCursor(Qt::CrossCursor);
         }
+        return;
+    }
+
+    if (m_isCroppingMode && m_isCroppingDrag) {
+        if (m_cropActiveHandle == -1) {
+            // Move whole rect
+            setCursor(Qt::SizeAllCursor);
+            QPoint delta = m_currentPoint - m_lastCropDragPoint;
+            m_cropRect.translate(delta);
+            m_lastCropDragPoint = m_currentPoint;
+        } else if (m_cropActiveHandle == 9) {
+            // Draw new crop rect from scratch
+            setCursor(Qt::CrossCursor);
+            m_cropRect = QRect(m_startPoint, m_currentPoint).normalized();
+        } else {
+            // Drag handles
+            if (m_cropActiveHandle == 1 || m_cropActiveHandle == 3) setCursor(Qt::SizeFDiagCursor);
+            else if (m_cropActiveHandle == 2 || m_cropActiveHandle == 4) setCursor(Qt::SizeBDiagCursor);
+            else if (m_cropActiveHandle == 5 || m_cropActiveHandle == 6) setCursor(Qt::SizeVerCursor);
+            else if (m_cropActiveHandle == 7 || m_cropActiveHandle == 8) setCursor(Qt::SizeHorCursor);
+            
+            QPoint pt = m_currentPoint;
+            QRect r = m_cropRect;
+            
+            if (m_cropActiveHandle == 1) r.setTopLeft(pt);
+            else if (m_cropActiveHandle == 2) r.setTopRight(pt);
+            else if (m_cropActiveHandle == 3) r.setBottomRight(pt);
+            else if (m_cropActiveHandle == 4) r.setBottomLeft(pt);
+            else if (m_cropActiveHandle == 5) r.setTop(pt.y());
+            else if (m_cropActiveHandle == 6) r.setBottom(pt.y());
+            else if (m_cropActiveHandle == 7) r.setLeft(pt.x());
+            else if (m_cropActiveHandle == 8) r.setRight(pt.x());
+            
+            m_cropRect = r.normalized();
+        }
+        
+        // Keep within background bounds
+        if (m_cropRect.left() < 0) m_cropRect.moveLeft(0);
+        if (m_cropRect.top() < 0) m_cropRect.moveTop(0);
+        if (m_cropRect.right() > m_background.width()) m_cropRect.moveRight(m_background.width());
+        if (m_cropRect.bottom() > m_background.height()) m_cropRect.moveBottom(m_background.height());
+        
+        update();
         return;
     }
 
@@ -756,6 +1007,22 @@ void EditorCanvas::mouseMoveEvent(QMouseEvent* event) {
 
 void EditorCanvas::mouseReleaseEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
+        if (m_isCroppingMode && m_isCroppingDrag) {
+            m_isCroppingDrag = false;
+            m_cropActiveHandle = -1;
+            
+            // If rect is too small, cancel the crop selection (but stay in mode)
+            if (m_cropRect.width() < 10 || m_cropRect.height() < 10) {
+                m_cropRect = QRect();
+                if (m_cropOverlayWidget) m_cropOverlayWidget->hide();
+            } else {
+                updateOverlayPosition();
+                if (m_cropOverlayWidget) m_cropOverlayWidget->show();
+            }
+            update();
+            return;
+        }
+        
         if (m_isCanvasResizing) {
             m_isCanvasResizing = false;
             m_canvasActiveHandle = -1;
