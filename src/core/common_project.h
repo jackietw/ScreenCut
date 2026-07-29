@@ -149,12 +149,6 @@ public:
 #elif defined(Q_OS_MACOS) || defined(Q_OS_MAC)
         // 1. Same MacOS folder inside app bundle
         candidates << QDir(appDir).filePath("SCEditor");
-        // 2. Sibling bundle in the same folder (e.g. build/SCEditor.app or /Applications/SCEditor.app)
-        candidates << QDir(appDir).filePath("../../../SCEditor.app/Contents/MacOS/SCEditor");
-        // 3. Bundled inside Resources
-        candidates << QDir(appDir).filePath("../Resources/SCEditor.app/Contents/MacOS/SCEditor");
-        // 4. One level up outside bundle
-        candidates << QDir(appDir).filePath("../../../../SCEditor.app/Contents/MacOS/SCEditor");
 #else
         candidates << QDir(appDir).filePath("SCEditor");
         candidates << QDir(appDir).filePath("../SCEditor");
@@ -172,19 +166,7 @@ public:
         QString editorPath = findEditorBinaryPath();
         qDebug() << "[ScutProject] Launching SCEditor using path:" << editorPath << "with args:" << args;
         bool started = QProcess::startDetached(editorPath, args);
-#if defined(Q_OS_MACOS) || defined(Q_OS_MAC)
-        if (!started && editorPath != "SCEditor") {
-            if (editorPath.contains("SCEditor.app")) {
-                QString appBundle = editorPath.left(editorPath.indexOf("SCEditor.app") + 12);
-                QStringList openArgs;
-                openArgs << "-a" << appBundle;
-                if (!args.isEmpty()) {
-                    openArgs << "--args" << args;
-                }
-                started = QProcess::startDetached("open", openArgs);
-            }
-        }
-#endif
+
         if (!started) {
             started = QProcess::startDetached("SCEditor", args);
         }
