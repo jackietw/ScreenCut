@@ -125,20 +125,13 @@ if(WIN32)
     add_executable(SCEditor WIN32 ${EDITOR_SOURCES})
 elseif(APPLE)
     add_executable(${PROJECT_NAME} MACOSX_BUNDLE ${CAPTURE_SOURCES})
-    add_executable(SCEditor MACOSX_BUNDLE ${EDITOR_SOURCES})
+    add_executable(SCEditor ${EDITOR_SOURCES})
     set_target_properties(${PROJECT_NAME} PROPERTIES
         MACOSX_BUNDLE_BUNDLE_NAME "ScreenCut"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.screencut.app"
         MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
         MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
         # macOS 10.15+ : provide NSScreenCaptureDescription & NSMicrophoneUsageDescription
-        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/platform/macos/Info.plist"
-    )
-    set_target_properties(SCEditor PROPERTIES
-        MACOSX_BUNDLE_BUNDLE_NAME "SCEditor"
-        MACOSX_BUNDLE_GUI_IDENTIFIER "com.screencut.editor"
-        MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
-        MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
         MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/platform/macos/Info.plist"
     )
     # Link Apple system frameworks required for screen capture, window enumeration, and cursor rendering
@@ -237,32 +230,29 @@ elseif(APPLE)
     endif()
 
     if(MACDEPLOYQT_EXECUTABLE)
+        # Ensure SCEditor is built before we package it into ScreenCut.app
+        add_dependencies(${PROJECT_NAME} SCEditor)
+
         if(FFMPEG_EXECUTABLE)
             add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:SCEditor>" "${CMAKE_BINARY_DIR}/ScreenCut.app/Contents/MacOS/SCEditor"
                 COMMAND ${CMAKE_COMMAND} -DAPP_DIR="${CMAKE_BINARY_DIR}/ScreenCut.app" -DMACDEPLOYQT="${MACDEPLOYQT_EXECUTABLE}" -P "${CMAKE_SOURCE_DIR}/platform/macos/deploy_mac.cmake"
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FFMPEG_EXECUTABLE}" "${CMAKE_BINARY_DIR}/ScreenCut.app/Contents/MacOS/ffmpeg"
                 COMMAND codesign --force --deep --sign "${MAC_SIGN_IDENTITY}"
                         --entitlements "${CMAKE_SOURCE_DIR}/platform/macos/ScreenCut.entitlements"
                         "${CMAKE_BINARY_DIR}/ScreenCut.app"
-                COMMENT "Deploying Qt Frameworks, bundling ffmpeg, and code-signing ScreenCut.app (Identity: ${MAC_SIGN_IDENTITY})..."
+                COMMENT "Bundling SCEditor, Deploying Qt Frameworks, bundling ffmpeg, and code-signing ScreenCut.app (Identity: ${MAC_SIGN_IDENTITY})..."
             )
         else()
             add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:SCEditor>" "${CMAKE_BINARY_DIR}/ScreenCut.app/Contents/MacOS/SCEditor"
                 COMMAND ${CMAKE_COMMAND} -DAPP_DIR="${CMAKE_BINARY_DIR}/ScreenCut.app" -DMACDEPLOYQT="${MACDEPLOYQT_EXECUTABLE}" -P "${CMAKE_SOURCE_DIR}/platform/macos/deploy_mac.cmake"
                 COMMAND codesign --force --deep --sign "${MAC_SIGN_IDENTITY}"
                         --entitlements "${CMAKE_SOURCE_DIR}/platform/macos/ScreenCut.entitlements"
                         "${CMAKE_BINARY_DIR}/ScreenCut.app"
-                COMMENT "Deploying Qt Frameworks and code-signing ScreenCut.app (Identity: ${MAC_SIGN_IDENTITY})..."
+                COMMENT "Bundling SCEditor, Deploying Qt Frameworks and code-signing ScreenCut.app (Identity: ${MAC_SIGN_IDENTITY})..."
             )
         endif()
-        add_custom_command(TARGET SCEditor POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -DAPP_DIR="${CMAKE_BINARY_DIR}/SCEditor.app" -DMACDEPLOYQT="${MACDEPLOYQT_EXECUTABLE}" -P "${CMAKE_SOURCE_DIR}/platform/macos/deploy_mac.cmake"
-            COMMAND codesign --force --deep --sign "${MAC_SIGN_IDENTITY}"
-                    "${CMAKE_BINARY_DIR}/SCEditor.app"
-            COMMENT "Deploying Qt Frameworks and code-signing SCEditor.app (Identity: ${MAC_SIGN_IDENTITY})..."
-        )
-        # Prevent concurrent macdeployqt runs when building targets in parallel (e.g. make -j)
-        add_dependencies(SCEditor ${PROJECT_NAME})
     endif()
 endif()
 
