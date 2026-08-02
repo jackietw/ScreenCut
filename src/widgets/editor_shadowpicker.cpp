@@ -33,9 +33,9 @@ void ShadowGridWidget::setupUI() {
     QFrame* container = new QFrame(this);
     container->setStyleSheet(
         "QFrame {"
-        "  background-color: #555555;"
-        "  border: 1px solid #555555;"
-        "  border-radius: 6px;"
+        "  background-color: #334155;"
+        "  border: 1px solid #94a3b8;"
+        "  border-radius: 4px;"
         "}"
     );
 
@@ -315,11 +315,12 @@ ShadowPropertyWidget::ShadowPropertyWidget(QWidget* parent) : QWidget(parent) {
 void ShadowPropertyWidget::setupUI() {
     QVBoxLayout* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(4);
+    layout->setSpacing(2);
     
     m_titleButton = new QPushButton("Shadow ▼", this);
     m_titleButton->setFlat(true);
-    m_titleButton->setStyleSheet("QPushButton { color: #ccc; font-size: 13px; text-align: center; border: none; } QPushButton:hover { color: #fff; }");
+    m_titleButton->setFixedHeight(20);
+    m_titleButton->setStyleSheet("QPushButton { color: #ccc; font-weight: normal; font-size: 13px; text-align: center; border: none; padding: 0px; margin: 0px; } QPushButton:hover { color: #fff; }");
     layout->addWidget(m_titleButton, 0, Qt::AlignCenter);
     
     m_grid = new ShadowGridWidget(this);

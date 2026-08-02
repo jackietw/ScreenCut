@@ -158,8 +158,8 @@ void HueSliderArea::updateFromMouse(const QPoint& pos) {
 
 // --- EditorColorPicker ---
 
-EditorColorPicker::EditorColorPicker(const QColor& initialColor, QWidget* parent) 
-    : QWidget(parent), m_color(initialColor) 
+EditorColorPicker::EditorColorPicker(const QColor& initialColor, QWidget* parent, bool allowTransparent) 
+    : QWidget(parent), m_color(initialColor), m_allowTransparent(allowTransparent)
 {
     setupUI();
     setColor(m_color);
@@ -203,8 +203,13 @@ void EditorColorPicker::setupUI() {
     
     QList<QColor> presets = {
         Qt::white, QColor("#a9c1c9"), QColor("#ff5c5c"), QColor("#00cc99"), QColor("#7db2ff"), QColor("#b2e040"),
-        Qt::black, QColor("#445566"), QColor("#8e44ad"), QColor("#f39c12"), QColor("#ff3399"), Qt::transparent
+        Qt::black, QColor("#445566"), QColor("#8e44ad"), QColor("#f39c12"), QColor("#ff3399")
     };
+    if (m_allowTransparent) {
+        presets.append(Qt::transparent);
+    } else {
+        presets.append(QColor("#888888")); // Fallback color
+    }
     
     int row = 0, col = 0;
     for (const QColor& c : presets) {

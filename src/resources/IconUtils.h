@@ -36,6 +36,7 @@ extern const QString SVG_SELECT;
 extern const QString SVG_ARROW;
 extern const QString SVG_TEXT;
 extern const QString SVG_SHAPE;
+extern const QString SVG_POLYGON;
 extern const QString SVG_STAMP;
 extern const QString SVG_CROP;
 extern const QString SVG_BLUR;

@@ -17,19 +17,15 @@ enum class ArrowHead {
 
     // Arrow
     Open,
-    Triangle,
     FilledTriangle,
 
     // Diamond
-    Diamond,
     FilledDiamond,
 
     // Circle
-    Circle,
     FilledCircle,
 
     // Square
-    Square,
     FilledSquare,
 
     // Tee

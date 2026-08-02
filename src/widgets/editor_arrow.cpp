@@ -17,14 +17,10 @@ namespace ScreenCut {
 
 ArrowHead ArrowPainter::stringToArrowHead(const QString& styleStr) {
     if (styleStr == "Open") return ArrowHead::Open;
-    if (styleStr == "Triangle") return ArrowHead::Triangle;
-    if (styleStr == "FilledTriangle" || styleStr == "Arrow") return ArrowHead::FilledTriangle;
-    if (styleStr == "Diamond") return ArrowHead::Diamond;
-    if (styleStr == "FilledDiamond") return ArrowHead::FilledDiamond;
-    if (styleStr == "Circle") return ArrowHead::Circle;
-    if (styleStr == "FilledCircle") return ArrowHead::FilledCircle;
-    if (styleStr == "Square") return ArrowHead::Square;
-    if (styleStr == "FilledSquare") return ArrowHead::FilledSquare;
+    if (styleStr == "Triangle" || styleStr == "FilledTriangle" || styleStr == "Arrow") return ArrowHead::FilledTriangle;
+    if (styleStr == "Diamond" || styleStr == "FilledDiamond") return ArrowHead::FilledDiamond;
+    if (styleStr == "Circle" || styleStr == "FilledCircle") return ArrowHead::FilledCircle;
+    if (styleStr == "Square" || styleStr == "FilledSquare") return ArrowHead::FilledSquare;
     if (styleStr == "Tee") return ArrowHead::Tee;
     return ArrowHead::None;
 }
@@ -32,13 +28,9 @@ ArrowHead ArrowPainter::stringToArrowHead(const QString& styleStr) {
 QString ArrowPainter::arrowHeadToString(ArrowHead head) {
     switch (head) {
         case ArrowHead::Open: return "Open";
-        case ArrowHead::Triangle: return "Triangle";
         case ArrowHead::FilledTriangle: return "FilledTriangle";
-        case ArrowHead::Diamond: return "Diamond";
         case ArrowHead::FilledDiamond: return "FilledDiamond";
-        case ArrowHead::Circle: return "Circle";
         case ArrowHead::FilledCircle: return "FilledCircle";
-        case ArrowHead::Square: return "Square";
         case ArrowHead::FilledSquare: return "FilledSquare";
         case ArrowHead::Tee: return "Tee";
         default: return "None";
@@ -131,30 +123,19 @@ void ArrowPainter::drawHead(QPainter& painter, const QPointF& pt, const QPointF&
     double baseSize = qMax(10.0, lineWidth * 3.0);
     double actualSize = baseSize * (sizeMod / 3.0); // 3 is default
 
+    painter.save();
     switch (head) {
         case ArrowHead::Open:
             drawOpenArrow(painter, pt, angle, actualSize);
             break;
-        case ArrowHead::Triangle:
-            drawTriangleArrow(painter, pt, angle, actualSize, false);
-            break;
         case ArrowHead::FilledTriangle:
             drawTriangleArrow(painter, pt, angle, actualSize, true);
-            break;
-        case ArrowHead::Diamond:
-            drawDiamondArrow(painter, pt, angle, actualSize, false);
             break;
         case ArrowHead::FilledDiamond:
             drawDiamondArrow(painter, pt, angle, actualSize, true);
             break;
-        case ArrowHead::Circle:
-            drawCircleArrow(painter, pt, actualSize, false);
-            break;
         case ArrowHead::FilledCircle:
             drawCircleArrow(painter, pt, actualSize, true);
-            break;
-        case ArrowHead::Square:
-            drawSquareArrow(painter, pt, angle, actualSize, false);
             break;
         case ArrowHead::FilledSquare:
             drawSquareArrow(painter, pt, angle, actualSize, true);
@@ -165,6 +146,7 @@ void ArrowPainter::drawHead(QPainter& painter, const QPointF& pt, const QPointF&
         default:
             break;
     }
+    painter.restore();
 }
 
 void ArrowPainter::drawOpenArrow(QPainter& painter, const QPointF& pt, double angle, double size) {
@@ -219,7 +201,7 @@ void ArrowPainter::drawTriangleArrow(QPainter& painter, const QPointF& pt, doubl
         pen.setStyle(Qt::SolidLine);
         pen.setJoinStyle(Qt::MiterJoin);
         painter.setPen(pen);
-        painter.setBrush(Qt::white); // or transparent, but Snagit usually fills with transparent
+        painter.setBrush(Qt::transparent);
         painter.drawPolygon(arrowhead);
     }
 }
@@ -250,7 +232,7 @@ void ArrowPainter::drawDiamondArrow(QPainter& painter, const QPointF& pt, double
         QPen pen = painter.pen();
         pen.setStyle(Qt::SolidLine);
         painter.setPen(pen);
-        painter.setBrush(Qt::white);
+        painter.setBrush(Qt::transparent);
         painter.drawPolygon(diamond);
     }
 }
@@ -263,7 +245,7 @@ void ArrowPainter::drawCircleArrow(QPainter& painter, const QPointF& pt, double 
         QPen pen = painter.pen();
         pen.setStyle(Qt::SolidLine);
         painter.setPen(pen);
-        painter.setBrush(Qt::white);
+        painter.setBrush(Qt::transparent);
         painter.drawEllipse(pt, (int)(size / 2.0), (int)(size / 2.0));
     }
 }
@@ -294,7 +276,7 @@ void ArrowPainter::drawSquareArrow(QPainter& painter, const QPointF& pt, double 
         QPen pen = painter.pen();
         pen.setStyle(Qt::SolidLine);
         painter.setPen(pen);
-        painter.setBrush(Qt::white);
+        painter.setBrush(Qt::transparent);
         painter.drawPolygon(square);
     }
 }

@@ -14,6 +14,8 @@
 #include <QString>
 #include <QPushButton>
 #include "../editor/editor_models.h"
+#include "tools/context.h"
+#include "tools/base.h"
 
 class QTextEdit;
 
@@ -28,41 +30,31 @@ public:
     void setBackground(const QPixmap& background);
     const QPixmap& background() const { return m_background; }
     void setTool(ToolType tool);
-    void setColor(const QColor& color);
-    void setLineWidth(int width);
+    ToolContext& getToolContext() { return m_toolContext; }
     
-    void setArrowType(const QString& type);
-    
-    // New arrow property setters
-    void setArrowStartStyle(const QString& style);
-    void setArrowEndStyle(const QString& style);
-    void setArrowLineStyle(const QString& style);
-    void setArrowOpacity(int opacity);
-    void setArrowStartSize(int size);
-    void setArrowEndSize(int size);
-    void setArrowShadow(const ShadowStyle& style);
-    void setShapeStyle(const QString& style);
-    void setLineStyle(const QString& style);
-    void setFontFamily(const QString& family);
-    void setFontSize(int size);
-    
-    // New text property setters
-    void setTextIsBold(bool bold);
-    void setTextIsItalic(bool italic);
-    void setTextIsUnderline(bool underline);
-    void setTextIsStrikeOut(bool strike);
-    void setTextHAlign(TextAnnotation::TextAlign align);
-    void setTextVAlign(TextAnnotation::VerticalAlign align);
-    void setTextOpacity(int opacity);
-    void setTextLineSpacing(int spacing);
-    void setTextOutlineColor(const QColor& color);
-    void setTextShadow(const ShadowStyle& style);
-    void setTextOutlineWidth(int width);
+    // API for Tool Handlers
+    QPoint mapToImage(const QPoint& viewPos) const;
+    void setTempItem(std::shared_ptr<AnnotationItem> item);
+    std::shared_ptr<AnnotationItem> getTempItem() const { return m_tempItem; }
+    void addAnnotation(std::shared_ptr<AnnotationItem> item);
+    std::shared_ptr<PolygonAnnotation> getCurrentPolygon() const { return m_currentPolygon; }
+    void setCurrentPolygon(std::shared_ptr<PolygonAnnotation> poly) { m_currentPolygon = poly; }
+    std::shared_ptr<AnnotationItem> getEditingTextObj() const { return m_editingTextObj; }
+    void setEditingTextObj(std::shared_ptr<AnnotationItem> obj) { m_editingTextObj = obj; }
+    QTextEdit* getTextInput() const { return m_textInput; }
+    void showTextInput(const QPoint& pos, const QString& text);
+    void commitText();
+    void setDrawing(bool drawing);
+    void setDragging(bool dragging);
+    std::shared_ptr<AnnotationItem> getSelectedItem() const { return m_selectedItem; }
+    void setSelectedItem(std::shared_ptr<AnnotationItem> item);
+    void updateCanvas();
 
-    void setBlurType(ToolType type);
-    void setBlurIntensity(int intensity);
-    void setPenStyle(const QString& style);
     void resetStepCounter();
+    int getNextStepNumber() { return m_nextStepNumber++; }
+
+    
+
 
     void applyCrop();
     void cancelCrop();
@@ -83,8 +75,8 @@ public:
     void setZoom(qreal zoom);
     qreal zoom() const { return m_zoomFactor; }
 
-private slots:
-    void commitText();
+public slots:
+    void commitTextSlot();
     void resizeTextInput();
 
 signals:
@@ -104,47 +96,17 @@ protected:
     bool eventFilter(QObject* obj, QEvent* event) override;
 
 private:
-    QPoint mapToImage(const QPoint& viewPos) const;
 
     QPixmap m_background;
     QTextEdit* m_textInput = nullptr;
     std::shared_ptr<AnnotationItem> m_editingTextObj = nullptr;
+    std::shared_ptr<PolygonAnnotation> m_currentPolygon = nullptr;
 
     ToolType m_currentTool = ToolType::Arrow;
-    QColor m_currentColor = QColor(255, 59, 48);
-    int m_currentLineWidth = 3;
     int m_nextStepNumber = 1;
     qreal m_zoomFactor = 1.0;
-    
-    QString m_arrowType = "Custom";
-    QString m_arrowStartStyle = "None";
-    QString m_arrowEndStyle = "Arrow";
-    QString m_arrowLineStyle = "Solid";
-    int m_arrowOpacity = 100;
-    int m_arrowStartSize = 3;
-    int m_arrowEndSize = 3;
-    ShadowStyle m_arrowShadow;
-    
-    QString m_shapeStyle = "Rectangle";
-    QString m_lineStyle = "Solid";
-    QString m_fontFamily = "Arial";
-    int m_fontSize = 24;
-    
-    bool m_textIsBold = false;
-    bool m_textIsItalic = false;
-    bool m_textIsUnderline = false;
-    bool m_textIsStrikeOut = false;
-    TextAnnotation::TextAlign m_textHAlign = TextAnnotation::TextAlign::Left;
-    TextAnnotation::VerticalAlign m_textVAlign = TextAnnotation::VerticalAlign::Top;
-    int m_textOpacity = 100;
-    int m_textLineSpacing = 0;
-    QColor m_textOutlineColor = Qt::transparent;
-    ShadowStyle m_textShadow;
-    int m_textOutlineWidth = 0;
-
-    ToolType m_blurType = ToolType::Mosaic;
-    int m_blurIntensity = 15;
-    QString m_penStyle = "Solid Pen";
+    std::unique_ptr<BaseTool> m_currentToolHandler;
+    ToolContext m_toolContext;
 
     struct HistoryState {
         QPixmap background;

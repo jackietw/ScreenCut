@@ -143,8 +143,22 @@ void EditorMainWindow::initUI() {
         }
     });
     
-    connect(m_propsPanel, &EditorPropsPanel::colorChanged, m_canvas, &EditorCanvas::setColor);
-    connect(m_propsPanel, &EditorPropsPanel::lineWidthChanged, m_canvas, &EditorCanvas::setLineWidth);
+    connect(m_propsPanel, &EditorPropsPanel::colorChanged, this, [this](const QColor& c) {
+        m_canvas->getToolContext().color = c;
+        if (auto item = m_canvas->getSelectedItem()) {
+            item->color = c;
+            m_canvas->updateCanvas();
+            m_canvas->saveToHistory(); // In real app, trigger history manually
+        }
+    });
+    connect(m_propsPanel, &EditorPropsPanel::lineWidthChanged, this, [this](int w) {
+        m_canvas->getToolContext().lineWidth = w;
+        if (auto item = m_canvas->getSelectedItem()) {
+            item->lineWidth = w;
+            m_canvas->updateCanvas();
+            m_canvas->saveToHistory();
+        }
+    });
 
     connect(m_toolBar, &EditorToolBar::undoClicked, m_canvas, &EditorCanvas::undo);
     connect(m_toolBar, &EditorToolBar::redoClicked, m_canvas, &EditorCanvas::redo);
@@ -165,35 +179,62 @@ void EditorMainWindow::initUI() {
     connect(m_canvas, &EditorCanvas::fontSizeChanged, m_propsPanel, &EditorPropsPanel::updateFontSizeUI);
 
     // Dynamic properties connections
-    connect(m_propsPanel, &EditorPropsPanel::arrowTypeChanged, m_canvas, &EditorCanvas::setArrowType);
-    connect(m_propsPanel, &EditorPropsPanel::arrowStartStyleChanged, m_canvas, &EditorCanvas::setArrowStartStyle);
-    connect(m_propsPanel, &EditorPropsPanel::arrowEndStyleChanged, m_canvas, &EditorCanvas::setArrowEndStyle);
-    connect(m_propsPanel, &EditorPropsPanel::arrowLineStyleChanged, m_canvas, &EditorCanvas::setArrowLineStyle);
-    connect(m_propsPanel, &EditorPropsPanel::arrowOpacityChanged, m_canvas, &EditorCanvas::setArrowOpacity);
-    connect(m_propsPanel, &EditorPropsPanel::arrowStartSizeChanged, m_canvas, &EditorCanvas::setArrowStartSize);
-    connect(m_propsPanel, &EditorPropsPanel::arrowEndSizeChanged, m_canvas, &EditorCanvas::setArrowEndSize);
-    connect(m_propsPanel, &EditorPropsPanel::arrowShadowChanged, m_canvas, &EditorCanvas::setArrowShadow);
-    connect(m_propsPanel, &EditorPropsPanel::shapeStyleChanged, m_canvas, &EditorCanvas::setShapeStyle);
-    connect(m_propsPanel, &EditorPropsPanel::lineStyleChanged, m_canvas, &EditorCanvas::setLineStyle);
-    connect(m_propsPanel, &EditorPropsPanel::fontFamilyChanged, m_canvas, &EditorCanvas::setFontFamily);
-    connect(m_propsPanel, &EditorPropsPanel::fontSizeChanged, m_canvas, &EditorCanvas::setFontSize);
-    
-    // Advanced text properties
-    connect(m_propsPanel, &EditorPropsPanel::textIsBoldChanged, m_canvas, &EditorCanvas::setTextIsBold);
-    connect(m_propsPanel, &EditorPropsPanel::textIsItalicChanged, m_canvas, &EditorCanvas::setTextIsItalic);
-    connect(m_propsPanel, &EditorPropsPanel::textIsUnderlineChanged, m_canvas, &EditorCanvas::setTextIsUnderline);
-    connect(m_propsPanel, &EditorPropsPanel::textIsStrikeOutChanged, m_canvas, &EditorCanvas::setTextIsStrikeOut);
-    connect(m_propsPanel, &EditorPropsPanel::textHAlignChanged, m_canvas, &EditorCanvas::setTextHAlign);
-    connect(m_propsPanel, &EditorPropsPanel::textVAlignChanged, m_canvas, &EditorCanvas::setTextVAlign);
-    connect(m_propsPanel, &EditorPropsPanel::textOpacityChanged, m_canvas, &EditorCanvas::setTextOpacity);
-    connect(m_propsPanel, &EditorPropsPanel::textLineSpacingChanged, m_canvas, &EditorCanvas::setTextLineSpacing);
-    connect(m_propsPanel, &EditorPropsPanel::textOutlineColorChanged, m_canvas, &EditorCanvas::setTextOutlineColor);
-    connect(m_propsPanel, &EditorPropsPanel::textShadowChanged, m_canvas, &EditorCanvas::setTextShadow);
-    connect(m_propsPanel, &EditorPropsPanel::textOutlineWidthChanged, m_canvas, &EditorCanvas::setTextOutlineWidth);
-    connect(m_propsPanel, &EditorPropsPanel::blurTypeChanged, m_canvas, &EditorCanvas::setBlurType);
-    connect(m_propsPanel, &EditorPropsPanel::blurIntensityChanged, m_canvas, &EditorCanvas::setBlurIntensity);
-    connect(m_propsPanel, &EditorPropsPanel::penStyleChanged, m_canvas, &EditorCanvas::setPenStyle);
-    connect(m_propsPanel, &EditorPropsPanel::resetStepCounter, m_canvas, &EditorCanvas::resetStepCounter);
+    // Dynamic properties connections mapped to ToolContext
+#define BIND_PROP(Signal, ContextField, UpdateType, FieldName) \
+    connect(m_propsPanel, &EditorPropsPanel::Signal, this, [this](auto val) { \
+        m_canvas->getToolContext().ContextField = val; \
+        if (auto item = m_canvas->getSelectedItem()) { \
+            if (item->getType() == UpdateType) { \
+                std::static_pointer_cast<AnnotationItem>(item)->FieldName = val; \
+                m_canvas->updateCanvas(); \
+            } \
+        } \
+    });
+
+    // We use custom lambdas for specific casts because different tools use different fields.
+    // Arrow
+    connect(m_propsPanel, &EditorPropsPanel::arrowTypeChanged, this, [this](const QString& val){ m_canvas->getToolContext().arrowType = val; if(auto i=std::dynamic_pointer_cast<ArrowAnnotation>(m_canvas->getSelectedItem())) { i->arrowType = val; m_canvas->updateCanvas(); } });
+    connect(m_propsPanel, &EditorPropsPanel::arrowStartStyleChanged, this, [this](const QString& val){ m_canvas->getToolContext().arrowStartStyle = val; if(auto i=std::dynamic_pointer_cast<ArrowAnnotation>(m_canvas->getSelectedItem())) { i->startStyle = val; m_canvas->updateCanvas(); } });
+    connect(m_propsPanel, &EditorPropsPanel::arrowEndStyleChanged, this, [this](const QString& val){ m_canvas->getToolContext().arrowEndStyle = val; if(auto i=std::dynamic_pointer_cast<ArrowAnnotation>(m_canvas->getSelectedItem())) { i->endStyle = val; m_canvas->updateCanvas(); } });
+    connect(m_propsPanel, &EditorPropsPanel::arrowLineStyleChanged, this, [this](const QString& val){ m_canvas->getToolContext().arrowLineStyle = val; if(auto i=std::dynamic_pointer_cast<ArrowAnnotation>(m_canvas->getSelectedItem())) { i->lineStyle = val; m_canvas->updateCanvas(); } });
+    connect(m_propsPanel, &EditorPropsPanel::arrowOpacityChanged, this, [this](int val){ m_canvas->getToolContext().arrowOpacity = val; if(auto i=std::dynamic_pointer_cast<ArrowAnnotation>(m_canvas->getSelectedItem())) { i->opacity = val; m_canvas->updateCanvas(); } });
+    connect(m_propsPanel, &EditorPropsPanel::arrowStartSizeChanged, this, [this](int val){ m_canvas->getToolContext().arrowStartSize = val; if(auto i=std::dynamic_pointer_cast<ArrowAnnotation>(m_canvas->getSelectedItem())) { i->startSize = val; m_canvas->updateCanvas(); } });
+    connect(m_propsPanel, &EditorPropsPanel::arrowEndSizeChanged, this, [this](int val){ m_canvas->getToolContext().arrowEndSize = val; if(auto i=std::dynamic_pointer_cast<ArrowAnnotation>(m_canvas->getSelectedItem())) { i->endSize = val; m_canvas->updateCanvas(); } });
+    connect(m_propsPanel, &EditorPropsPanel::arrowShadowChanged, this, [this](const ShadowStyle& val){ m_canvas->getToolContext().arrowShadow = val; if(auto i=std::dynamic_pointer_cast<ArrowAnnotation>(m_canvas->getSelectedItem())) { i->shadow = val; m_canvas->updateCanvas(); } });
+
+    // Shape (Rectangle, Ellipse, Polygon)
+    connect(m_propsPanel, &EditorPropsPanel::shapeStyleChanged, this, [this](const QString& val){ 
+        m_canvas->getToolContext().shapeStyle = val; 
+        if(auto i = std::dynamic_pointer_cast<ShapeAnnotation>(m_canvas->getSelectedItem())) { 
+            i->shapeStyle = val; m_canvas->updateCanvas(); 
+        } 
+    });
+    connect(m_propsPanel, &EditorPropsPanel::lineStyleChanged, this, [this](const QString& val){ 
+        m_canvas->getToolContext().lineStyle = val; 
+        if(auto i = std::dynamic_pointer_cast<ShapeAnnotation>(m_canvas->getSelectedItem())) { i->lineStyle = val; }
+        else if(auto i = std::dynamic_pointer_cast<PolygonAnnotation>(m_canvas->getSelectedItem())) { i->lineStyle = val; }
+        m_canvas->updateCanvas();
+    });
+    // Text
+    connect(m_propsPanel, &EditorPropsPanel::fontFamilyChanged, this, [this](const QString& val){ m_canvas->getToolContext().fontFamily = val; if(auto i=std::dynamic_pointer_cast<TextAnnotation>(m_canvas->getSelectedItem())) { i->fontFamily = val; m_canvas->updateCanvas(); } });
+    connect(m_propsPanel, &EditorPropsPanel::fontSizeChanged, this, [this](int val){ m_canvas->getToolContext().fontSize = val; if(auto i=std::dynamic_pointer_cast<TextAnnotation>(m_canvas->getSelectedItem())) { i->fontSize = val; m_canvas->updateCanvas(); } });
+    connect(m_propsPanel, &EditorPropsPanel::textIsBoldChanged, this, [this](bool val){ m_canvas->getToolContext().textIsBold = val; if(auto i=std::dynamic_pointer_cast<TextAnnotation>(m_canvas->getSelectedItem())) { i->isBold = val; m_canvas->updateCanvas(); } });
+    connect(m_propsPanel, &EditorPropsPanel::textIsItalicChanged, this, [this](bool val){ m_canvas->getToolContext().textIsItalic = val; if(auto i=std::dynamic_pointer_cast<TextAnnotation>(m_canvas->getSelectedItem())) { i->isItalic = val; m_canvas->updateCanvas(); } });
+    connect(m_propsPanel, &EditorPropsPanel::textIsUnderlineChanged, this, [this](bool val){ m_canvas->getToolContext().textIsUnderline = val; if(auto i=std::dynamic_pointer_cast<TextAnnotation>(m_canvas->getSelectedItem())) { i->isUnderline = val; m_canvas->updateCanvas(); } });
+    connect(m_propsPanel, &EditorPropsPanel::textIsStrikeOutChanged, this, [this](bool val){ m_canvas->getToolContext().textIsStrikeOut = val; if(auto i=std::dynamic_pointer_cast<TextAnnotation>(m_canvas->getSelectedItem())) { i->isStrikeOut = val; m_canvas->updateCanvas(); } });
+    connect(m_propsPanel, &EditorPropsPanel::textHAlignChanged, this, [this](TextAnnotation::TextAlign val){ m_canvas->getToolContext().textHAlign = val; if(auto i=std::dynamic_pointer_cast<TextAnnotation>(m_canvas->getSelectedItem())) { i->hAlign = val; m_canvas->updateCanvas(); } });
+    connect(m_propsPanel, &EditorPropsPanel::textVAlignChanged, this, [this](TextAnnotation::VerticalAlign val){ m_canvas->getToolContext().textVAlign = val; if(auto i=std::dynamic_pointer_cast<TextAnnotation>(m_canvas->getSelectedItem())) { i->vAlign = val; m_canvas->updateCanvas(); } });
+    connect(m_propsPanel, &EditorPropsPanel::textOpacityChanged, this, [this](int val){ m_canvas->getToolContext().textOpacity = val; if(auto i=std::dynamic_pointer_cast<TextAnnotation>(m_canvas->getSelectedItem())) { i->opacity = val; m_canvas->updateCanvas(); } });
+    connect(m_propsPanel, &EditorPropsPanel::textLineSpacingChanged, this, [this](int val){ m_canvas->getToolContext().textLineSpacing = val; if(auto i=std::dynamic_pointer_cast<TextAnnotation>(m_canvas->getSelectedItem())) { i->lineSpacing = val; m_canvas->updateCanvas(); } });
+    connect(m_propsPanel, &EditorPropsPanel::textOutlineColorChanged, this, [this](const QColor& val){ m_canvas->getToolContext().textOutlineColor = val; if(auto i=std::dynamic_pointer_cast<TextAnnotation>(m_canvas->getSelectedItem())) { i->outlineColor = val; m_canvas->updateCanvas(); } });
+    connect(m_propsPanel, &EditorPropsPanel::textShadowChanged, this, [this](const ShadowStyle& val){ m_canvas->getToolContext().textShadow = val; if(auto i=std::dynamic_pointer_cast<TextAnnotation>(m_canvas->getSelectedItem())) { i->shadow = val; m_canvas->updateCanvas(); } });
+    connect(m_propsPanel, &EditorPropsPanel::textOutlineWidthChanged, this, [this](int val){ m_canvas->getToolContext().textOutlineWidth = val; if(auto i=std::dynamic_pointer_cast<TextAnnotation>(m_canvas->getSelectedItem())) { i->outlineWidth = val; m_canvas->updateCanvas(); } });
+
+    // Blur / Others
+    connect(m_propsPanel, &EditorPropsPanel::blurTypeChanged, this, [this](ToolType val){ m_canvas->getToolContext().blurType = val; if(auto i=std::dynamic_pointer_cast<ShaderAnnotation>(m_canvas->getSelectedItem())) { i->shaderType = val; m_canvas->updateCanvas(); } });
+    connect(m_propsPanel, &EditorPropsPanel::blurIntensityChanged, this, [this](int val){ m_canvas->getToolContext().blurIntensity = val; if(auto i=std::dynamic_pointer_cast<ShaderAnnotation>(m_canvas->getSelectedItem())) { i->intensity = val; m_canvas->updateCanvas(); } });
+    connect(m_propsPanel, &EditorPropsPanel::penStyleChanged, this, [this](const QString& val){ m_canvas->getToolContext().penStyle = val; if(auto i=std::dynamic_pointer_cast<FreehandAnnotation>(m_canvas->getSelectedItem())) { i->penStyle = val; m_canvas->updateCanvas(); } });
+    connect(m_propsPanel, &EditorPropsPanel::resetStepCounter, m_canvas, [this](){ /* TODO: move resetStep to ToolContext or Canvas */ });
 
     connect(m_toolBar, &EditorToolBar::copyClicked, this, &EditorMainWindow::copyToClipboard);
     connect(m_toolBar, &EditorToolBar::saveClicked, this, &EditorMainWindow::saveToFile);

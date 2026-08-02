@@ -155,13 +155,25 @@ void ShapeAnnotation::draw(QPainter& painter, const QPixmap* /*background*/) {
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing);
 
-    QPen pen(color, lineWidth, (lineStyle == "Dashed") ? Qt::DashLine : Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    if (shadow.enabled) {
+        // Implement shadow if needed, but for now just basic draw
+        // (Shadows are usually drawn in a separate pass or using QGraphicsDropShadowEffect)
+    }
+
+    QColor penColor = outlineColor;
+    penColor.setAlphaF(opacity / 100.0);
+    QPen pen(penColor, lineWidth, (lineStyle == "Dashed") ? Qt::DashLine : Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    
+    // If outline is transparent, set pen to NoPen
+    if (outlineColor == Qt::transparent) {
+        pen = Qt::NoPen;
+    }
     painter.setPen(pen);
 
-    if (isFilled) {
-        QColor fillColor = color;
-        fillColor.setAlpha(60);
-        painter.setBrush(fillColor);
+    if (fillColor != Qt::transparent) {
+        QColor fColor = fillColor;
+        fColor.setAlphaF((fillColor.alphaF() * opacity) / 100.0);
+        painter.setBrush(fColor);
     } else {
         painter.setBrush(Qt::NoBrush);
     }
@@ -198,7 +210,7 @@ void ShapeAnnotation::draw(QPainter& painter, const QPixmap* /*background*/) {
 }
 
 bool ShapeAnnotation::contains(const QPoint& pos) const {
-    if (isFilled) {
+    if (fillColor != Qt::transparent) {
         return rect.adjusted(-6, -6, 6, 6).contains(pos);
     } else {
         QRect outer = rect.adjusted(-6, -6, 6, 6);
@@ -246,11 +258,141 @@ std::shared_ptr<AnnotationItem> ShapeAnnotation::clone() const {
     auto copy = std::make_shared<ShapeAnnotation>(shapeType, rect);
     copy->color = color;
     copy->lineWidth = lineWidth;
-    copy->isFilled = isFilled;
+    copy->fillColor = fillColor;
+    copy->outlineColor = outlineColor;
     copy->shapeStyle = shapeStyle;
     copy->lineStyle = lineStyle;
     copy->shadow = shadow;
+    copy->opacity = opacity;
     return copy;
+}
+
+// ============================================================================
+// PolygonAnnotation
+// ============================================================================
+PolygonAnnotation::PolygonAnnotation() = default;
+
+void PolygonAnnotation::addPoint(const QPoint& point) {
+    points.push_back(point);
+}
+
+void PolygonAnnotation::draw(QPainter& painter, const QPixmap* /*background*/) {
+    if (points.empty()) return;
+
+    painter.save();
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    QColor penColor = outlineColor;
+    penColor.setAlphaF(opacity / 100.0);
+    QPen pen(penColor, lineWidth, (lineStyle == "Dashed") ? Qt::DashLine : Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    if (outlineColor == Qt::transparent) pen = Qt::NoPen;
+    painter.setPen(pen);
+
+    if (fillColor != Qt::transparent) {
+        QColor fColor = fillColor;
+        fColor.setAlphaF((fillColor.alphaF() * opacity) / 100.0);
+        painter.setBrush(fColor);
+    } else {
+        painter.setBrush(Qt::NoBrush);
+    }
+
+    if (points.size() == 1) {
+        painter.drawPoint(points[0]);
+    } else if (points.size() == 2) {
+        painter.drawLine(points[0], points[1]);
+    } else {
+        painter.drawPolygon(points.data(), static_cast<int>(points.size()));
+    }
+
+    if (isSelected) {
+        painter.setPen(QPen(Qt::white, 1, Qt::DashLine));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawRect(boundingRect().adjusted(-4, -4, 4, 4));
+        
+        // Draw handles at each point
+        painter.setPen(QPen(Qt::black, 1));
+        painter.setBrush(Qt::white);
+        for (const auto& pt : points) {
+            painter.drawRect(pt.x() - 4, pt.y() - 4, 8, 8);
+        }
+    }
+
+    painter.restore();
+}
+
+bool PolygonAnnotation::contains(const QPoint& pos) const {
+    if (points.size() < 3) return false;
+    QPolygon poly;
+    for (const auto& p : points) poly << p;
+    return poly.containsPoint(pos, Qt::OddEvenFill);
+}
+
+void PolygonAnnotation::moveBy(const QPoint& delta) {
+    for (auto& pt : points) {
+        pt += delta;
+    }
+}
+
+QRect PolygonAnnotation::boundingRect() const {
+    if (points.empty()) return QRect();
+    int minX = points[0].x(), maxX = points[0].x();
+    int minY = points[0].y(), maxY = points[0].y();
+    for (const auto& pt : points) {
+        if (pt.x() < minX) minX = pt.x();
+        if (pt.x() > maxX) maxX = pt.x();
+        if (pt.y() < minY) minY = pt.y();
+        if (pt.y() > maxY) maxY = pt.y();
+    }
+    // Add margin for line width
+    int m = lineWidth / 2 + 1;
+    return QRect(minX - m, minY - m, maxX - minX + m * 2, maxY - minY + m * 2);
+}
+
+int PolygonAnnotation::hitTestHandle(const QPoint& pos) const {
+    if (!isSelected) return -1;
+    for (size_t i = 0; i < points.size(); ++i) {
+        if (QRect(points[i].x() - 6, points[i].y() - 6, 12, 12).contains(pos)) {
+            return static_cast<int>(i + 1); // Handle IDs are 1-based index
+        }
+    }
+    return -1;
+}
+
+void PolygonAnnotation::moveHandle(int handleId, const QPoint& newPos) {
+    size_t idx = handleId - 1;
+    if (idx < points.size()) {
+        points[idx] = newPos;
+    }
+}
+
+std::shared_ptr<AnnotationItem> PolygonAnnotation::clone() const {
+    auto copy = std::make_shared<PolygonAnnotation>();
+    copy->points = points;
+    copy->fillColor = fillColor;
+    copy->outlineColor = outlineColor;
+    copy->lineWidth = lineWidth;
+    copy->lineStyle = lineStyle;
+    copy->opacity = opacity;
+    copy->shadow = shadow;
+    return copy;
+}
+
+QJsonObject PolygonAnnotation::toJson() const {
+    QJsonObject obj;
+    obj["obj_type"] = "polygon";
+    obj["outline_color"] = outlineColor.name(QColor::HexArgb);
+    obj["fill_color"] = fillColor.name(QColor::HexArgb);
+    obj["width"] = lineWidth;
+    obj["line_style"] = lineStyle;
+    obj["opacity"] = opacity;
+    obj["shadow"] = shadowToJson(shadow);
+    QJsonArray pts;
+    for (const QPoint& pt : points) {
+        QJsonArray p; p.append(pt.x()); p.append(pt.y());
+        pts.append(p);
+    }
+    obj["points"] = pts;
+    return obj;
 }
 
 // ============================================================================
@@ -789,10 +931,13 @@ QJsonObject ArrowAnnotation::toJson() const {
 QJsonObject ShapeAnnotation::toJson() const {
     QJsonObject obj;
     obj["obj_type"] = "shape";
-    obj["color"] = color.name(QColor::HexArgb);
+    obj["outline_color"] = outlineColor.name(QColor::HexArgb);
+    obj["fill_color"] = fillColor.name(QColor::HexArgb);
     obj["width"] = lineWidth;
     obj["shape_type"] = (shapeType == ToolType::Rectangle) ? "Rectangle" : "Ellipse";
-    obj["is_filled"] = isFilled;
+    obj["shape_style"] = shapeStyle;
+    obj["line_style"] = lineStyle;
+    obj["opacity"] = opacity;
     obj["shadow"] = shadowToJson(shadow);
     QJsonArray r; r.append(rect.x()); r.append(rect.y()); r.append(rect.width()); r.append(rect.height());
     obj["rect"] = r;
@@ -893,11 +1038,32 @@ std::shared_ptr<AnnotationItem> AnnotationItem::fromJson(const QJsonObject& json
         QJsonArray r = json["rect"].toArray();
         if (r.size() < 4) return nullptr;
         auto shape = std::make_shared<ShapeAnnotation>(tt, QRect(r[0].toInt(), r[1].toInt(), r[2].toInt(), r[3].toInt()));
-        shape->color = col;
+        shape->outlineColor = QColor(json["outline_color"].toString(json["color"].toString("#ff3b30")));
+        shape->fillColor = QColor(json["fill_color"].toString(QColor(Qt::transparent).name(QColor::HexArgb)));
+        if (json.contains("is_filled") && json["is_filled"].toBool()) {
+            shape->fillColor = shape->outlineColor;
+            shape->fillColor.setAlpha(60);
+        }
         shape->lineWidth = w;
-        shape->isFilled = json["is_filled"].toBool();
+        shape->shapeStyle = json["shape_style"].toString("Rectangle");
+        shape->lineStyle = json["line_style"].toString("Solid");
+        shape->opacity = json["opacity"].toInt(100);
         shape->shadow = shadowFromJson(json);
         return shape;
+    } else if (objType == "polygon") {
+        auto poly = std::make_shared<PolygonAnnotation>();
+        poly->outlineColor = QColor(json["outline_color"].toString("#ff3b30"));
+        poly->fillColor = QColor(json["fill_color"].toString(QColor(Qt::transparent).name(QColor::HexArgb)));
+        poly->lineWidth = w;
+        poly->lineStyle = json["line_style"].toString("Solid");
+        poly->opacity = json["opacity"].toInt(100);
+        poly->shadow = shadowFromJson(json);
+        QJsonArray pts = json["points"].toArray();
+        for (int i = 0; i < pts.size(); ++i) {
+            QJsonArray p = pts[i].toArray();
+            poly->addPoint(QPoint(p[0].toInt(), p[1].toInt()));
+        }
+        return poly;
     } else if (objType == "freehand") {
         auto fh = std::make_shared<FreehandAnnotation>();
         fh->color = col;

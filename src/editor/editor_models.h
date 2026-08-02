@@ -24,6 +24,7 @@ enum class ToolType {
     Arrow,
     Rectangle,
     Ellipse,
+    Polygon,
     Freehand,
     Text,
     StepMarker,
@@ -106,10 +107,36 @@ public:
 
     ToolType shapeType; // Rectangle or Ellipse
     QRect rect;
-    bool isFilled = false;
+    QColor fillColor = Qt::transparent;
+    QColor outlineColor = QColor(255, 59, 48);
     QString shapeStyle = "Rectangle"; // Rectangle, Rounded Rectangle, Ellipse
     QString lineStyle = "Solid";
     ShadowStyle shadow;
+    int opacity = 100;
+};
+
+class PolygonAnnotation : public AnnotationItem {
+public:
+    PolygonAnnotation();
+
+    void addPoint(const QPoint& point);
+
+    ToolType getType() const override { return ToolType::Polygon; }
+    void draw(QPainter& painter, const QPixmap* background = nullptr) override;
+    bool contains(const QPoint& pos) const override;
+    void moveBy(const QPoint& delta) override;
+    QRect boundingRect() const override;
+    int hitTestHandle(const QPoint& pos) const override;
+    void moveHandle(int handleId, const QPoint& newPos) override;
+    std::shared_ptr<AnnotationItem> clone() const override;
+    QJsonObject toJson() const override;
+
+    std::vector<QPoint> points;
+    QColor fillColor = Qt::transparent;
+    QColor outlineColor = QColor(255, 59, 48);
+    QString lineStyle = "Solid";
+    ShadowStyle shadow;
+    int opacity = 100;
 };
 
 class FreehandAnnotation : public AnnotationItem {

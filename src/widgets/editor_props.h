@@ -51,6 +51,11 @@ signals:
     
     void shapeStyleChanged(const QString& style);
     void lineStyleChanged(const QString& style);
+    void shapeFillColorChanged(const QColor& color);
+    void shapeOutlineColorChanged(const QColor& color);
+    void shapeShadowChanged(const ShadowStyle& style);
+    void shapeThicknessChanged(int thickness);
+    void shapeOpacityChanged(int opacity);
     void fontFamilyChanged(const QString& family);
     void fontSizeChanged(int size);
     
@@ -78,6 +83,12 @@ private:
     void createColorPalette();
     void createSizeSlider();
     
+    // UI Helpers
+    QWidget* createSectionTitle(const QString& title);
+    QWidget* createPickerButton(const QString& title, QPushButton*& btn);
+    void createSliderRow(QVBoxLayout* parentLayout, const QString& title, QSlider*& slider, QLabel*& label, int min, int max, int defaultVal, const QString& suffix = "");
+    void pickColor(QPushButton* sourceBtn, const QColor& initial, std::function<void(const QColor&)> onSelected, bool allowTransparent = true);
+
     void createArrowProps();
     void createShapeProps();
     void createTextProps();
@@ -121,7 +132,15 @@ private:
     QPushButton* m_btnArrowColor = nullptr;
     ScreenCut::ShadowPropertyWidget* m_btnArrowShadow = nullptr;
     
+    // Shape UI elements
+    QPushButton* m_btnShapeFill = nullptr;
+    QPushButton* m_btnShapeOutline = nullptr;
+    ScreenCut::ShadowPropertyWidget* m_btnShapeShadow = nullptr;
     QComboBox* m_shapeStyleCombo = nullptr;
+    QSlider* m_shapeThicknessSlider = nullptr;
+    QLabel* m_shapeThicknessLabel = nullptr;
+    QSlider* m_shapeOpacitySlider = nullptr;
+    QLabel* m_shapeOpacityLabel = nullptr;
     QComboBox* m_lineStyleCombo = nullptr;
     QComboBox* m_blurTypeCombo = nullptr;
     QComboBox* m_penStyleCombo = nullptr;

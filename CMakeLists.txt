@@ -109,6 +109,13 @@ set(EDITOR_SOURCES
     src/widgets/editor_canvas.cpp
     src/widgets/editor_arrow.h
     src/widgets/editor_arrow.cpp
+    src/widgets/tools/arrow.cpp
+    src/widgets/tools/shape.cpp
+    src/widgets/tools/text.cpp
+    src/widgets/tools/freehand.cpp
+    src/widgets/tools/step.cpp
+    src/widgets/tools/blur.cpp
+    src/widgets/tools/select.cpp
     ${SHARED_SOURCES}
 )
 

@@ -23,10 +23,127 @@
 #include <QFile>
 #include "../resources/IconUtils.h"
 
+namespace {
+    void updateOutlineIcon(QPushButton* btn, const QColor& c) {
+        if (!btn) return;
+        
+        btn->setStyleSheet("border: 1px solid #94a3b8; border-radius: 4px; background-color: #334155; padding: 2px;"); // Base panel background
+        
+        if (c == Qt::transparent) {
+            QString svg = ScreenCut::SVG_TRANSPARENT;
+            svg.replace("#ff0000", "#FFFFFF", Qt::CaseInsensitive);
+            btn->setIcon(ScreenCut::createSvgIcon(svg, 24, 24));
+            btn->setIconSize(QSize(24, 24));
+            return;
+        }
+        
+        QPixmap pixmap(32, 32);
+        pixmap.fill(Qt::transparent);
+        QPainter p(&pixmap);
+        
+        // Outer white frame (1px)
+        p.fillRect(2, 2, 28, 28, Qt::white);
+        
+        // Color middle
+        p.fillRect(3, 3, 26, 26, c);
+        
+        // Inner white frame (1px)
+        p.fillRect(7, 7, 18, 18, Qt::white);
+        
+        // Inner transparent
+        p.setCompositionMode(QPainter::CompositionMode_Clear);
+        p.fillRect(8, 8, 16, 16, Qt::transparent);
+        p.setCompositionMode(QPainter::CompositionMode_SourceOver);
+        
+        btn->setIcon(QIcon(pixmap));
+        btn->setIconSize(QSize(32, 32));
+    }
+
+    void updateFillIcon(QPushButton* btn, const QColor& c) {
+        if (!btn) return;
+        
+        btn->setStyleSheet("border: 1px solid #94a3b8; border-radius: 4px; background-color: #334155; padding: 2px;"); // Base panel background
+        
+        if (c == Qt::transparent) {
+            btn->setIcon(QIcon()); // Just show the base background if transparent
+            return;
+        }
+        
+        QPixmap pixmap(32, 32);
+        pixmap.fill(Qt::transparent);
+        QPainter p(&pixmap);
+        
+        // Outer white frame (1px)
+        p.fillRect(2, 2, 28, 28, Qt::white);
+        
+        // Color middle (solid fill)
+        p.fillRect(3, 3, 26, 26, c);
+        
+        btn->setIcon(QIcon(pixmap));
+        btn->setIconSize(QSize(32, 32));
+    }
+}
 namespace ScreenCut {
 
 EditorPropsPanel::EditorPropsPanel(QWidget* parent) : QWidget(parent) {
     setupUI();
+}
+
+QWidget* EditorPropsPanel::createSectionTitle(const QString& title) {
+    QWidget* w = new QWidget();
+    w->setStyleSheet("background-color: #cbd5e1; border-top: 1px solid #94a3b8; border-bottom: 1px solid #94a3b8;");
+    QHBoxLayout* l = new QHBoxLayout(w);
+    l->setContentsMargins(8, 4, 8, 4);
+    QLabel* label = new QLabel(title);
+    label->setStyleSheet("font-weight: bold; color: #334155; border: none; background: transparent;");
+    l->addWidget(label, 0, Qt::AlignCenter);
+    return w;
+}
+
+QWidget* EditorPropsPanel::createPickerButton(const QString& title, QPushButton*& btn) {
+    QWidget* w = new QWidget();
+    QVBoxLayout* l = new QVBoxLayout(w);
+    l->setContentsMargins(0, 0, 0, 0);
+    l->setSpacing(2);
+    QLabel* label = new QLabel(title);
+    label->setAlignment(Qt::AlignCenter);
+    label->setFixedHeight(20);
+    label->setStyleSheet("font-weight: normal; color: #ccc; padding: 0px; margin: 0px;");
+    btn = new QPushButton();
+    btn->setFixedSize(40, 40);
+    // Base style before icon updates
+    btn->setStyleSheet("border: 1px solid #94a3b8; border-radius: 4px; background-color: #334155; padding: 2px;");
+    l->addWidget(label);
+    l->addWidget(btn, 0, Qt::AlignCenter);
+    return w;
+}
+
+void EditorPropsPanel::createSliderRow(QVBoxLayout* parentLayout, const QString& title, QSlider*& slider, QLabel*& label, int min, int max, int defaultVal, const QString& suffix) {
+    QHBoxLayout* l = new QHBoxLayout();
+    l->addWidget(new QLabel(title));
+    slider = new QSlider(Qt::Horizontal);
+    slider->setRange(min, max);
+    slider->setValue(defaultVal);
+    label = new QLabel(QString::number(defaultVal) + suffix);
+    label->setFixedWidth(40);
+    l->addWidget(slider);
+    l->addWidget(label);
+    parentLayout->addLayout(l);
+}
+
+void EditorPropsPanel::pickColor(QPushButton* sourceBtn, const QColor& initial, std::function<void(const QColor&)> onSelected, bool allowTransparent) {
+    QMenu* menu = new QMenu(this);
+    menu->setStyleSheet("QMenu { background: #252525; border: 1px solid #444; border-radius: 8px; }");
+    
+    EditorColorPicker* picker = new EditorColorPicker(initial, menu, allowTransparent);
+    connect(picker, &EditorColorPicker::colorChanged, onSelected);
+    
+    QWidgetAction* action = new QWidgetAction(menu);
+    action->setDefaultWidget(picker);
+    menu->addAction(action);
+    
+    menu->exec(sourceBtn->mapToGlobal(QPoint(0, sourceBtn->height() + 4)));
+    menu->deleteLater();
 }
 
 void EditorPropsPanel::setupUI() {
@@ -189,58 +306,32 @@ void EditorPropsPanel::createArrowProps() {
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(12);
 
-    auto createSectionTitle = [](const QString& title) -> QWidget* {
-        QWidget* w = new QWidget();
-        w->setStyleSheet("background-color: #333333; border-top: 1px solid #444; border-bottom: 1px solid #444;");
-        QHBoxLayout* l = new QHBoxLayout(w);
-        l->setContentsMargins(8, 4, 8, 4);
-        QLabel* label = new QLabel(title);
-        label->setStyleSheet("font-weight: bold; color: #ddd; border: none; background: transparent;");
-        l->addWidget(label, 0, Qt::AlignCenter);
-        return w;
-    };
 
-    auto pickColor = [this](QPushButton* sourceBtn, const QColor& initial, std::function<void(const QColor&)> onSelected) {
-        QMenu* menu = new QMenu(this);
-        menu->setStyleSheet("QMenu { background: #252525; border: 1px solid #444; border-radius: 8px; }");
-        
-        EditorColorPicker* picker = new EditorColorPicker(initial, menu);
-        connect(picker, &EditorColorPicker::colorChanged, onSelected);
-        
-        QWidgetAction* action = new QWidgetAction(menu);
-        action->setDefaultWidget(picker);
-        menu->addAction(action);
-        
-        menu->exec(sourceBtn->mapToGlobal(QPoint(0, sourceBtn->height() + 4)));
-        menu->deleteLater();
-    };
 
     // --- TOOL PROPERTIES ---
     mainLayout->addWidget(createSectionTitle("Tool Properties"));
     
     // Color & Shadow
     QHBoxLayout* colorShadowLayout = new QHBoxLayout();
+    colorShadowLayout->setSpacing(15);
+    colorShadowLayout->addStretch();
     
-    QVBoxLayout* colorLayout = new QVBoxLayout();
-    colorLayout->addWidget(new QLabel("Color", m_arrowWidget), 0, Qt::AlignCenter);
-    m_btnArrowColor = new QPushButton();
-    m_btnArrowColor->setFixedSize(40, 40);
-    m_btnArrowColor->setStyleSheet("border: 1px solid #94a3b8; border-radius: 4px; background-color: #ef4444;");
-    colorLayout->addWidget(m_btnArrowColor, 0, Qt::AlignCenter);
-    colorShadowLayout->addLayout(colorLayout);
+    colorShadowLayout->addWidget(createPickerButton("Color", m_btnArrowColor));
+    updateFillIcon(m_btnArrowColor, QColor("#ef4444"));
     
-    connect(m_btnArrowColor, &QPushButton::clicked, this, [this, pickColor](){
+    QVBoxLayout* shadowLayout = new QVBoxLayout();
+    connect(m_btnArrowColor, &QPushButton::clicked, this, [this](){
         pickColor(m_btnArrowColor, m_selectedColor, [this](const QColor& c){
             m_selectedColor = c;
-            m_btnArrowColor->setStyleSheet(QString("border: 1px solid #94a3b8; border-radius: 4px; background-color: %1;").arg(c.name()));
+            updateFillIcon(m_btnArrowColor, c);
             emit colorChanged(c);
-        });
+        }, false); // No transparent option
     });
 
-    QVBoxLayout* shadowLayout = new QVBoxLayout();
     m_btnArrowShadow = new ShadowPropertyWidget(m_arrowWidget);
     shadowLayout->addWidget(m_btnArrowShadow, 0, Qt::AlignCenter);
     colorShadowLayout->addLayout(shadowLayout);
+    colorShadowLayout->addStretch();
     
     connect(m_btnArrowShadow, &ShadowPropertyWidget::shadowStyleChanged, this, [this](const ShadowStyle& style){
         emit arrowShadowChanged(style);
@@ -291,9 +382,9 @@ void EditorPropsPanel::createArrowProps() {
     auto populateArrowCombo = [&](QComboBox* combo, bool isStart) {
         combo->setIconSize(QSize(60, 20));
         const QStringList styles = {
-            "None", "Open", "Triangle", "FilledTriangle", 
-            "Diamond", "FilledDiamond", "Circle", "FilledCircle", 
-            "Square", "FilledSquare", "Tee"
+            "None", "Open", "FilledTriangle", 
+            "FilledDiamond", "FilledCircle", 
+            "FilledSquare", "Tee"
         };
         for (const QString& style : styles) {
             combo->addItem(createArrowIcon(style, isStart), "", style);
@@ -391,19 +482,118 @@ void EditorPropsPanel::createArrowProps() {
 
 void EditorPropsPanel::createShapeProps() {
     m_shapeWidget = new QWidget(this);
-    QVBoxLayout* l = new QVBoxLayout(m_shapeWidget);
-    l->setContentsMargins(0,0,0,0);
-    l->addWidget(new QLabel("Shape Type", m_shapeWidget));
-    m_shapeStyleCombo = new QComboBox(m_shapeWidget);
-    m_shapeStyleCombo->addItems({"Rectangle", "Rounded Rectangle", "Ellipse"});
-    connect(m_shapeStyleCombo, &QComboBox::currentTextChanged, this, &EditorPropsPanel::shapeStyleChanged);
-    l->addWidget(m_shapeStyleCombo);
+    QVBoxLayout* mainLayout = new QVBoxLayout(m_shapeWidget);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(8);
+
+    mainLayout->addWidget(createSectionTitle("Tool Properties"));
+
+    // Fill, Outline, Shape, Shadow pickers
+    QHBoxLayout* pickersLayout = new QHBoxLayout();
+    pickersLayout->setSpacing(6);
     
-    l->addWidget(new QLabel("Line Style", m_shapeWidget));
-    m_lineStyleCombo = new QComboBox(m_shapeWidget);
-    m_lineStyleCombo->addItems({"Solid", "Dashed"});
-    connect(m_lineStyleCombo, &QComboBox::currentTextChanged, this, &EditorPropsPanel::lineStyleChanged);
-    l->addWidget(m_lineStyleCombo);
+    pickersLayout->addStretch();
+    
+    pickersLayout->addWidget(createPickerButton("Fill", m_btnShapeFill));
+    updateFillIcon(m_btnShapeFill, Qt::transparent); // Default fill
+    connect(m_btnShapeFill, &QPushButton::clicked, this, [this](){
+        // Fill supports transparent
+        pickColor(m_btnShapeFill, m_selectedColor, [this](const QColor& c){
+            m_selectedColor = c;
+            updateFillIcon(m_btnShapeFill, c);
+            emit shapeFillColorChanged(c);
+        }, true);
+    });
+
+    pickersLayout->addWidget(createPickerButton("Outline", m_btnShapeOutline));
+    updateOutlineIcon(m_btnShapeOutline, QColor(255, 59, 48)); // Default outline red
+    connect(m_btnShapeOutline, &QPushButton::clicked, this, [this](){
+        // Outline supports transparent
+        pickColor(m_btnShapeOutline, m_textOutlineColor, [this](const QColor& c){
+            m_textOutlineColor = c;
+            updateOutlineIcon(m_btnShapeOutline, c);
+            emit shapeOutlineColorChanged(c);
+        }, true);
+    });
+
+    // Shape selector
+    QWidget* shapePickerW = new QWidget();
+    QVBoxLayout* shapeL = new QVBoxLayout(shapePickerW);
+    shapeL->setContentsMargins(0, 0, 0, 0);
+    shapeL->setSpacing(2);
+    QLabel* shapeLabel = new QLabel("Shape");
+    shapeLabel->setAlignment(Qt::AlignCenter);
+    shapeLabel->setFixedHeight(20);
+    shapeLabel->setStyleSheet("font-weight: normal; color: #ccc; padding: 0px; margin: 0px;");
+    shapeL->addWidget(shapeLabel);
+    
+    m_shapeStyleCombo = new QComboBox();
+    m_shapeStyleCombo->setFixedSize(40, 40);
+    m_shapeStyleCombo->setIconSize(QSize(32, 32));
+    m_shapeStyleCombo->addItem(ScreenCut::createSvgIcon(ScreenCut::SVG_RECT, 32, 32), "", "Rectangle");
+    // We don't have SVG_ROUNDED_RECT yet, but we'll use SVG_RECT for now
+    m_shapeStyleCombo->addItem(ScreenCut::createSvgIcon(ScreenCut::SVG_RECT, 32, 32), "", "Rounded Rectangle");
+    m_shapeStyleCombo->addItem(ScreenCut::createSvgIcon(ScreenCut::SVG_ELLIPSE, 32, 32), "", "Ellipse");
+    m_shapeStyleCombo->addItem(ScreenCut::createSvgIcon(ScreenCut::SVG_POLYGON, 32, 32), "", "Polygon");
+    
+    // Apply styling to hide the text and only show icon in the combobox box (hide the drop-down arrow in normal state if we want, but default is fine)
+    m_shapeStyleCombo->setStyleSheet("QComboBox { border: 1px solid #444; border-radius: 4px; background-color: #2b2b2b; padding: 2px; } QComboBox::drop-down { border: 0px; width: 0px; } QComboBox::down-arrow { image: none; } QComboBox QAbstractItemView { icon-size: 32px 32px; }");
+    
+    connect(m_shapeStyleCombo, &QComboBox::currentIndexChanged, this, [this](int /*index*/) {
+        emit shapeStyleChanged(m_shapeStyleCombo->currentData().toString());
+    });
+    shapeL->addWidget(m_shapeStyleCombo, 0, Qt::AlignCenter);
+    pickersLayout->addWidget(shapePickerW);
+
+    m_btnShapeShadow = new ShadowPropertyWidget(m_shapeWidget);
+    pickersLayout->addWidget(m_btnShapeShadow);
+    connect(m_btnShapeShadow, &ShadowPropertyWidget::shadowStyleChanged, this, [this](const ShadowStyle& style){
+        emit shapeShadowChanged(style);
+    });
+
+    pickersLayout->addStretch();
+    mainLayout->addLayout(pickersLayout);
+
+    createSliderRow(mainLayout, "Thickness", m_shapeThicknessSlider, m_shapeThicknessLabel, 1, 40, 3, "");
+    connect(m_shapeThicknessSlider, &QSlider::valueChanged, this, [this](int value) {
+        m_shapeThicknessLabel->setText(QString::number(value));
+        emit shapeThicknessChanged(value);
+    });
+
+    createSliderRow(mainLayout, "Opacity", m_shapeOpacitySlider, m_shapeOpacityLabel, 0, 100, 100, "%");
+    connect(m_shapeOpacitySlider, &QSlider::valueChanged, this, [this](int value) {
+        m_shapeOpacityLabel->setText(QString::number(value) + "%");
+        emit shapeOpacityChanged(value);
+    });
+    
+    // Line style row
+    QVBoxLayout* lineStyleLayout = new QVBoxLayout();
+    
+    // Lambda to draw line style icons
+    auto createLineIcon = [](Qt::PenStyle style) -> QIcon {
+        QPixmap pixmap(100, 20);
+        pixmap.fill(Qt::transparent);
+        QPainter p(&pixmap);
+        p.setRenderHint(QPainter::Antialiasing);
+        QPen pen(Qt::white, 3, style, Qt::FlatCap, Qt::MiterJoin);
+        p.setPen(pen);
+        p.drawLine(10, 10, 90, 10);
+        return QIcon(pixmap);
+    };
+    
+    QHBoxLayout* lineComboLayout = new QHBoxLayout();
+    lineComboLayout->addWidget(new QLabel("Line Style"));
+    m_lineStyleCombo = new QComboBox();
+    m_lineStyleCombo->setIconSize(QSize(100, 20));
+    m_lineStyleCombo->addItem(createLineIcon(Qt::SolidLine), "", "Solid");
+    m_lineStyleCombo->addItem(createLineIcon(Qt::DashLine), "", "Dashed");
+    connect(m_lineStyleCombo, &QComboBox::currentIndexChanged, this, [this](int /*index*/) {
+        emit lineStyleChanged(m_lineStyleCombo->currentData().toString());
+    });
+    lineComboLayout->addWidget(m_lineStyleCombo, 1);
+    lineStyleLayout->addLayout(lineComboLayout);
+    mainLayout->addLayout(lineStyleLayout);
+
     m_mainLayout->addWidget(m_shapeWidget);
 }
 
@@ -413,42 +603,16 @@ void EditorPropsPanel::createTextProps() {
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(8);
 
-    // Helper lambda for section titles
-    auto createSectionTitle = [](const QString& title) -> QWidget* {
-        QWidget* w = new QWidget();
-        w->setStyleSheet("background-color: #cbd5e1; border-top: 1px solid #94a3b8; border-bottom: 1px solid #94a3b8;");
-        QHBoxLayout* l = new QHBoxLayout(w);
-        l->setContentsMargins(8, 4, 8, 4);
-        QLabel* label = new QLabel(title);
-        label->setStyleSheet("font-weight: bold; color: #334155; border: none; background: transparent;");
-        l->addWidget(label, 0, Qt::AlignCenter);
-        return w;
-    };
     // --- TOOL PROPERTIES ---
     mainLayout->addWidget(createSectionTitle("Tool Properties"));
 
     // Fill, Outline, Shadow Pickers
     QHBoxLayout* pickersLayout = new QHBoxLayout();
-    pickersLayout->setSpacing(12);
-    
-    auto createPicker = [](const QString& title, QPushButton*& btn) -> QWidget* {
-        QWidget* w = new QWidget();
-        QVBoxLayout* l = new QVBoxLayout(w);
-        l->setContentsMargins(0, 0, 0, 0);
-        l->setSpacing(2);
-        QLabel* label = new QLabel(title);
-        label->setAlignment(Qt::AlignCenter);
-        btn = new QPushButton();
-        btn->setFixedSize(48, 48);
-        btn->setStyleSheet("border: 1px solid #94a3b8; border-radius: 4px; background-color: white;");
-        l->addWidget(label);
-        l->addWidget(btn, 0, Qt::AlignCenter);
-        return w;
-    };
+    pickersLayout->setSpacing(15);
     
     pickersLayout->addStretch();
-    pickersLayout->addWidget(createPicker("Fill", m_btnTextFill));
-    pickersLayout->addWidget(createPicker("Outline", m_btnTextOutline));
+    pickersLayout->addWidget(createPickerButton("Fill", m_btnTextFill));
+    pickersLayout->addWidget(createPickerButton("Outline", m_btnTextOutline));
     
     m_btnTextShadow = new ShadowPropertyWidget(m_textWidget);
     pickersLayout->addWidget(m_btnTextShadow);
@@ -588,34 +752,18 @@ void EditorPropsPanel::createTextProps() {
         emit textLineSpacingChanged(val);
     });
 
-    auto pickColor = [this](QPushButton* sourceBtn, const QColor& initial, std::function<void(const QColor&)> onSelected) {
-        QMenu* menu = new QMenu(this);
-        menu->setStyleSheet("QMenu { background: #252525; border: 1px solid #444; border-radius: 8px; }");
-        
-        EditorColorPicker* picker = new EditorColorPicker(initial, menu);
-        connect(picker, &EditorColorPicker::colorChanged, onSelected);
-        
-        QWidgetAction* action = new QWidgetAction(menu);
-        action->setDefaultWidget(picker);
-        menu->addAction(action);
-        
-        menu->exec(sourceBtn->mapToGlobal(QPoint(0, sourceBtn->height() + 4)));
-        menu->deleteLater();
-    };
-
-
-    connect(m_btnTextFill, &QPushButton::clicked, this, [this, pickColor](){
+    connect(m_btnTextFill, &QPushButton::clicked, this, [this](){
         pickColor(m_btnTextFill, m_selectedColor, [this](const QColor& c){
             m_selectedColor = c;
-            m_btnTextFill->setStyleSheet(QString("border: 1px solid #94a3b8; border-radius: 4px; background-color: %1;").arg(c == Qt::transparent ? "transparent" : c.name()));
+            updateFillIcon(m_btnTextFill, c);
             emit colorChanged(c);
-        });
+        }, false); // No transparent option
     });
 
-    connect(m_btnTextOutline, &QPushButton::clicked, this, [this, pickColor](){
+    connect(m_btnTextOutline, &QPushButton::clicked, this, [this](){
         pickColor(m_btnTextOutline, m_textOutlineColor, [this](const QColor& c){
             m_textOutlineColor = c;
-            m_btnTextOutline->setStyleSheet(QString("border: 1px solid #94a3b8; border-radius: 4px; background-color: %1;").arg(c == Qt::transparent ? "transparent" : c.name()));
+            updateOutlineIcon(m_btnTextOutline, c);
             emit textOutlineColorChanged(c);
         });
     });
@@ -735,7 +883,12 @@ void EditorPropsPanel::updateVisibility(ToolType type) {
             showSize = false;
             break;
         case ToolType::Rectangle:
-        case ToolType::Ellipse: m_shapeWidget->setVisible(true); break;
+        case ToolType::Ellipse:
+        case ToolType::Polygon:
+            m_shapeWidget->setVisible(true);
+            showColor = false;
+            showSize = false;
+            break;
         case ToolType::Text: 
             m_textWidget->setVisible(true); 
             showColor = false;
@@ -842,12 +995,69 @@ void EditorPropsPanel::syncFromSelection(const std::shared_ptr<AnnotationItem>& 
         
         m_btnArrowShadow->setShadowStyle(arrow->shadow);
         
-        m_btnArrowColor->setStyleSheet(QString("border: 1px solid #94a3b8; border-radius: 4px; background-color: %1;").arg(arrow->color.name()));
+        updateFillIcon(m_btnArrowColor, arrow->color);
 
-    } else if (item->getType() == ToolType::Rectangle || item->getType() == ToolType::Ellipse) {
-        auto shape = std::static_pointer_cast<ShapeAnnotation>(item);
-        m_shapeStyleCombo->setCurrentText(shape->shapeStyle);
-        m_lineStyleCombo->setCurrentText(shape->lineStyle);
+    } else if (item->getType() == ToolType::Rectangle || item->getType() == ToolType::Ellipse || item->getType() == ToolType::Polygon) {
+        std::shared_ptr<AnnotationItem> shapeItem = item;
+        
+        QColor fillColor = Qt::transparent;
+        QColor outlineColor = QColor(255, 59, 48);
+        int lineWidth = 3;
+        QString shapeStyle = "Rectangle";
+        QString lineStyle = "Solid";
+        int opacity = 100;
+        ShadowStyle shadow;
+        
+        if (item->getType() == ToolType::Polygon) {
+            auto poly = std::static_pointer_cast<PolygonAnnotation>(item);
+            fillColor = poly->fillColor;
+            outlineColor = poly->outlineColor;
+            lineWidth = poly->lineWidth;
+            shapeStyle = "Polygon";
+            lineStyle = poly->lineStyle;
+            opacity = poly->opacity;
+            shadow = poly->shadow;
+        } else {
+            auto shape = std::static_pointer_cast<ShapeAnnotation>(item);
+            fillColor = shape->fillColor;
+            outlineColor = shape->outlineColor;
+            lineWidth = shape->lineWidth;
+            shapeStyle = shape->shapeStyle;
+            lineStyle = shape->lineStyle;
+            opacity = shape->opacity;
+            shadow = shape->shadow;
+        }
+        
+        if (m_shapeStyleCombo) m_shapeStyleCombo->setCurrentIndex(m_shapeStyleCombo->findData(shapeStyle));
+        if (m_lineStyleCombo) m_lineStyleCombo->setCurrentIndex(m_lineStyleCombo->findData(lineStyle));
+        
+        if (m_btnShapeFill) {
+            m_selectedColor = fillColor;
+            updateFillIcon(m_btnShapeFill, fillColor);
+        }
+        
+        if (m_btnShapeOutline) {
+            m_textOutlineColor = outlineColor;
+            updateOutlineIcon(m_btnShapeOutline, outlineColor);
+        }
+        
+        if (m_shapeThicknessSlider) {
+            m_shapeThicknessSlider->blockSignals(true);
+            m_shapeThicknessSlider->setValue(lineWidth);
+            if (m_shapeThicknessLabel) m_shapeThicknessLabel->setText(QString::number(lineWidth));
+            m_shapeThicknessSlider->blockSignals(false);
+        }
+        
+        if (m_shapeOpacitySlider) {
+            m_shapeOpacitySlider->blockSignals(true);
+            m_shapeOpacitySlider->setValue(opacity);
+            if (m_shapeOpacityLabel) m_shapeOpacityLabel->setText(QString::number(opacity) + "%");
+            m_shapeOpacitySlider->blockSignals(false);
+        }
+        
+        if (m_btnShapeShadow) {
+            m_btnShapeShadow->setShadowStyle(shadow);
+        }
     } else if (item->getType() == ToolType::Text) {
         auto txt = std::static_pointer_cast<TextAnnotation>(item);
         if (m_fontFamilyCombo) m_fontFamilyCombo->setCurrentFont(QFont(txt->fontFamily));
@@ -889,11 +1099,10 @@ void EditorPropsPanel::syncFromSelection(const std::shared_ptr<AnnotationItem>& 
         
         // Update picker buttons styling (rough mockup)
         if (m_btnTextFill) {
-            m_btnTextFill->setStyleSheet(QString("border: 1px solid #94a3b8; border-radius: 4px; background-color: %1;").arg(txt->color == Qt::transparent ? "transparent" : txt->color.name()));
+            updateFillIcon(m_btnTextFill, txt->color);
         }
         if (m_btnTextOutline) {
-            QString outColor = txt->outlineColor == Qt::transparent ? "transparent" : txt->outlineColor.name();
-            m_btnTextOutline->setStyleSheet(QString("border: 1px solid #94a3b8; border-radius: 4px; background-color: %1;").arg(outColor));
+            updateOutlineIcon(m_btnTextOutline, txt->outlineColor);
         }
         if (m_btnTextShadow) {
             m_btnTextShadow->setShadowStyle(txt->shadow);

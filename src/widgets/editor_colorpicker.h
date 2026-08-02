@@ -57,7 +57,7 @@ private:
 class EditorColorPicker : public QWidget {
     Q_OBJECT
 public:
-    explicit EditorColorPicker(const QColor& initialColor = Qt::white, QWidget* parent = nullptr);
+    explicit EditorColorPicker(const QColor& initialColor = Qt::white, QWidget* parent = nullptr, bool allowTransparent = true);
     ~EditorColorPicker() override = default;
 
     QColor color() const;
@@ -75,6 +75,7 @@ private:
 
     QColor m_color;
     bool m_updating = false;
+    bool m_allowTransparent = true;
 
     SVPickerArea* m_svPicker = nullptr;
     HueSliderArea* m_hueSlider = nullptr;

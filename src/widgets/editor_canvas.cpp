@@ -12,6 +12,14 @@
 #include <QHBoxLayout>
 #include <QPushButton>
 
+#include "tools/arrow.h"
+#include "tools/shape.h"
+#include "tools/text.h"
+#include "tools/freehand.h"
+#include "tools/step.h"
+#include "tools/blur.h"
+#include "tools/select.h"
+
 namespace ScreenCut {
 
 EditorCanvas::EditorCanvas(const QPixmap& background, QWidget* parent)
@@ -83,6 +91,36 @@ void EditorCanvas::setTool(ToolType tool) {
     
     m_currentTool = tool;
     
+    switch (tool) {
+        case ToolType::Arrow:
+            m_currentToolHandler = std::make_unique<ArrowTool>();
+            break;
+        case ToolType::Rectangle:
+        case ToolType::Ellipse:
+        case ToolType::Polygon:
+            m_currentToolHandler = std::make_unique<ShapeTool>(tool);
+            break;
+        case ToolType::Text:
+            m_currentToolHandler = std::make_unique<TextTool>();
+            break;
+        case ToolType::Freehand:
+            m_currentToolHandler = std::make_unique<FreehandTool>();
+            break;
+        case ToolType::StepMarker:
+            m_currentToolHandler = std::make_unique<StepTool>();
+            break;
+        case ToolType::Mosaic:
+        case ToolType::Blur:
+            m_currentToolHandler = std::make_unique<BlurTool>();
+            break;
+        case ToolType::None:
+            m_currentToolHandler = std::make_unique<SelectTool>();
+            break;
+        default:
+            m_currentToolHandler = nullptr;
+            break;
+    }
+
     if (m_currentTool == ToolType::Crop) {
         m_isCroppingMode = true;
         // Start with empty rect, user must drag to create one
@@ -92,246 +130,7 @@ void EditorCanvas::setTool(ToolType tool) {
     }
 }
 
-void EditorCanvas::setColor(const QColor& color) {
-    m_currentColor = color;
-    if (m_selectedItem) {
-        m_selectedItem->color = color;
-        update();
-        emit historyChanged();
-    }
-}
-
-void EditorCanvas::setLineWidth(int width) {
-    m_currentLineWidth = width;
-    if (m_selectedItem) {
-        m_selectedItem->lineWidth = width;
-        update();
-        emit historyChanged();
-    }
-}
-
-void EditorCanvas::setArrowType(const QString& type) {
-    m_arrowType = type;
-    if (m_selectedItem && m_selectedItem->getType() == ToolType::Arrow) {
-        std::static_pointer_cast<ArrowAnnotation>(m_selectedItem)->arrowType = type;
-        update();
-        emit historyChanged();
-    }
-}
-
-void EditorCanvas::setArrowStartStyle(const QString& style) {
-    m_arrowStartStyle = style;
-    if (m_selectedItem && m_selectedItem->getType() == ToolType::Arrow) {
-        std::static_pointer_cast<ArrowAnnotation>(m_selectedItem)->startStyle = style;
-        update();
-        emit historyChanged();
-    }
-}
-
-void EditorCanvas::setArrowEndStyle(const QString& style) {
-    m_arrowEndStyle = style;
-    if (m_selectedItem && m_selectedItem->getType() == ToolType::Arrow) {
-        std::static_pointer_cast<ArrowAnnotation>(m_selectedItem)->endStyle = style;
-        update();
-        emit historyChanged();
-    }
-}
-
-void EditorCanvas::setArrowLineStyle(const QString& style) {
-    m_arrowLineStyle = style;
-    if (m_selectedItem && m_selectedItem->getType() == ToolType::Arrow) {
-        std::static_pointer_cast<ArrowAnnotation>(m_selectedItem)->lineStyle = style;
-        update();
-        emit historyChanged();
-    }
-}
-
-void EditorCanvas::setArrowOpacity(int opacity) {
-    m_arrowOpacity = opacity;
-    if (m_selectedItem && m_selectedItem->getType() == ToolType::Arrow) {
-        std::static_pointer_cast<ArrowAnnotation>(m_selectedItem)->opacity = opacity;
-        update();
-        emit historyChanged();
-    }
-}
-
-void EditorCanvas::setArrowStartSize(int size) {
-    m_arrowStartSize = size;
-    if (m_selectedItem && m_selectedItem->getType() == ToolType::Arrow) {
-        std::static_pointer_cast<ArrowAnnotation>(m_selectedItem)->startSize = size;
-        update();
-        emit historyChanged();
-    }
-}
-
-void EditorCanvas::setArrowEndSize(int size) {
-    m_arrowEndSize = size;
-    if (m_selectedItem && m_selectedItem->getType() == ToolType::Arrow) {
-        std::static_pointer_cast<ArrowAnnotation>(m_selectedItem)->endSize = size;
-        update();
-        emit historyChanged();
-    }
-}
-
-void EditorCanvas::setArrowShadow(const ShadowStyle& style) {
-    m_arrowShadow = style;
-    if (m_selectedItem && m_selectedItem->getType() == ToolType::Arrow) {
-        std::static_pointer_cast<ArrowAnnotation>(m_selectedItem)->shadow = style;
-        update();
-        emit historyChanged();
-    }
-}
-
-void EditorCanvas::setShapeStyle(const QString& style) {
-    m_shapeStyle = style;
-    if (m_selectedItem && (m_selectedItem->getType() == ToolType::Rectangle || m_selectedItem->getType() == ToolType::Ellipse)) {
-        std::static_pointer_cast<ShapeAnnotation>(m_selectedItem)->shapeStyle = style;
-        update();
-        emit historyChanged();
-    }
-}
-
-void EditorCanvas::setLineStyle(const QString& style) {
-    m_lineStyle = style;
-    if (m_selectedItem && (m_selectedItem->getType() == ToolType::Rectangle || m_selectedItem->getType() == ToolType::Ellipse)) {
-        std::static_pointer_cast<ShapeAnnotation>(m_selectedItem)->lineStyle = style;
-        update();
-        emit historyChanged();
-    }
-}
-
-void EditorCanvas::setFontFamily(const QString& family) {
-    m_fontFamily = family;
-    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
-        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->fontFamily = family;
-        update();
-        emit historyChanged();
-    }
-}
-
-void EditorCanvas::setFontSize(int size) {
-    m_fontSize = size;
-    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
-        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->fontSize = size;
-        update();
-        emit historyChanged();
-    }
-}
-
-void EditorCanvas::setTextIsBold(bool bold) {
-    m_textIsBold = bold;
-    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
-        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->isBold = bold;
-        update(); emit historyChanged();
-    }
-}
-
-void EditorCanvas::setTextIsItalic(bool italic) {
-    m_textIsItalic = italic;
-    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
-        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->isItalic = italic;
-        update(); emit historyChanged();
-    }
-}
-
-void EditorCanvas::setTextIsUnderline(bool underline) {
-    m_textIsUnderline = underline;
-    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
-        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->isUnderline = underline;
-        update(); emit historyChanged();
-    }
-}
-
-void EditorCanvas::setTextIsStrikeOut(bool strike) {
-    m_textIsStrikeOut = strike;
-    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
-        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->isStrikeOut = strike;
-        update(); emit historyChanged();
-    }
-}
-
-void EditorCanvas::setTextHAlign(TextAnnotation::TextAlign align) {
-    m_textHAlign = align;
-    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
-        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->hAlign = align;
-        update(); emit historyChanged();
-    }
-}
-
-void EditorCanvas::setTextVAlign(TextAnnotation::VerticalAlign align) {
-    m_textVAlign = align;
-    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
-        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->vAlign = align;
-        update(); emit historyChanged();
-    }
-}
-
-void EditorCanvas::setTextOpacity(int opacity) {
-    m_textOpacity = opacity;
-    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
-        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->opacity = opacity;
-        update(); emit historyChanged();
-    }
-}
-
-void EditorCanvas::setTextLineSpacing(int spacing) {
-    m_textLineSpacing = spacing;
-    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
-        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->lineSpacing = spacing;
-        update(); emit historyChanged();
-    }
-}
-
-void EditorCanvas::setTextOutlineColor(const QColor& color) {
-    m_textOutlineColor = color;
-    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
-        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->outlineColor = color;
-        update(); emit historyChanged();
-    }
-}
-
-void EditorCanvas::setTextShadow(const ShadowStyle& style) {
-    m_textShadow = style;
-    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
-        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->shadow = style;
-        update(); emit historyChanged();
-    }
-}
-
-void EditorCanvas::setTextOutlineWidth(int width) {
-    m_textOutlineWidth = width;
-    if (m_selectedItem && m_selectedItem->getType() == ToolType::Text) {
-        std::static_pointer_cast<TextAnnotation>(m_selectedItem)->outlineWidth = width;
-        update(); emit historyChanged();
-    }
-}
-
-void EditorCanvas::setBlurType(ToolType type) {
-    m_blurType = type;
-    if (m_selectedItem && (m_selectedItem->getType() == ToolType::Mosaic || m_selectedItem->getType() == ToolType::Blur)) {
-        std::static_pointer_cast<ShaderAnnotation>(m_selectedItem)->shaderType = type;
-        update();
-        emit historyChanged();
-    }
-}
-
-void EditorCanvas::setBlurIntensity(int intensity) {
-    m_blurIntensity = intensity;
-    if (m_selectedItem && (m_selectedItem->getType() == ToolType::Mosaic || m_selectedItem->getType() == ToolType::Blur)) {
-        std::static_pointer_cast<ShaderAnnotation>(m_selectedItem)->intensity = intensity;
-        update();
-        emit historyChanged();
-    }
-}
-
-void EditorCanvas::setPenStyle(const QString& style) {
-    m_penStyle = style;
-    if (m_selectedItem && m_selectedItem->getType() == ToolType::Freehand) {
-        std::static_pointer_cast<FreehandAnnotation>(m_selectedItem)->penStyle = style;
-        update();
-        emit historyChanged();
-    }
-}
+// Old setter methods removed. State is now managed by ToolContext.
 
 void EditorCanvas::resetStepCounter() {
     m_nextStepNumber = 1;
@@ -500,14 +299,16 @@ void EditorCanvas::paintEvent(QPaintEvent* /*event*/) {
 
     // Draw temporary drawing item
     if (m_isDrawing) {
-        if (m_tempItem) {
+        if (m_currentPolygon) {
+            m_currentPolygon->draw(painter, &m_background);
+        } else if (m_tempItem) {
             m_tempItem->draw(painter, &m_background);
         } else if (m_currentTool == ToolType::Text) {
             QRect rect(m_startPoint, m_currentPoint);
             rect = rect.normalized();
-            QPen pen(m_currentColor, 1, Qt::DashLine);
+            QPen pen(m_toolContext.color, 1, Qt::DashLine);
             painter.setPen(pen);
-            painter.setBrush(QBrush(QColor(m_currentColor.red(), m_currentColor.green(), m_currentColor.blue(), 30)));
+            painter.setBrush(QBrush(QColor(m_toolContext.color.red(), m_toolContext.color.green(), m_toolContext.color.blue(), 30)));
             painter.drawRect(rect);
         }
     }
@@ -582,10 +383,6 @@ void EditorCanvas::paintEvent(QPaintEvent* /*event*/) {
     }
 }
 
-QPoint EditorCanvas::mapToImage(const QPoint& viewPos) const {
-    if (m_zoomFactor <= 0) return viewPos;
-    return QPoint(viewPos.x() / m_zoomFactor, viewPos.y() / m_zoomFactor);
-}
 
 void EditorCanvas::resizeTextInput() {
     if (!m_textInput->isVisible()) return;
@@ -625,36 +422,36 @@ void EditorCanvas::commitText() {
     if (m_editingTextObj) {
         auto txtObj = std::static_pointer_cast<TextAnnotation>(m_editingTextObj);
         txtObj->text = text;
-        txtObj->color = m_currentColor;
-        txtObj->fontFamily = m_fontFamily;
-        txtObj->fontSize = m_fontSize;
-        txtObj->isBold = m_textIsBold;
-        txtObj->isItalic = m_textIsItalic;
-        txtObj->isUnderline = m_textIsUnderline;
-        txtObj->isStrikeOut = m_textIsStrikeOut;
-        txtObj->hAlign = m_textHAlign;
-        txtObj->vAlign = m_textVAlign;
-        txtObj->opacity = m_textOpacity;
-        txtObj->lineSpacing = m_textLineSpacing;
-        txtObj->outlineColor = m_textOutlineColor;
-        txtObj->shadow = m_textShadow;
-        txtObj->outlineWidth = m_textOutlineWidth;
+        txtObj->color = m_toolContext.color;
+        txtObj->fontFamily = m_toolContext.fontFamily;
+        txtObj->fontSize = m_toolContext.fontSize;
+        txtObj->isBold = m_toolContext.textIsBold;
+        txtObj->isItalic = m_toolContext.textIsItalic;
+        txtObj->isUnderline = m_toolContext.textIsUnderline;
+        txtObj->isStrikeOut = m_toolContext.textIsStrikeOut;
+        txtObj->hAlign = m_toolContext.textHAlign;
+        txtObj->vAlign = m_toolContext.textVAlign;
+        txtObj->opacity = m_toolContext.textOpacity;
+        txtObj->lineSpacing = m_toolContext.textLineSpacing;
+        txtObj->outlineColor = m_toolContext.textOutlineColor;
+        txtObj->shadow = m_toolContext.textShadow;
+        txtObj->outlineWidth = m_toolContext.textOutlineWidth;
     } else {
         auto txtItem = std::make_shared<TextAnnotation>(m_startPoint, text);
-        txtItem->color = m_currentColor;
-        txtItem->fontFamily = m_fontFamily;
-        txtItem->fontSize = m_fontSize;
-        txtItem->isBold = m_textIsBold;
-        txtItem->isItalic = m_textIsItalic;
-        txtItem->isUnderline = m_textIsUnderline;
-        txtItem->isStrikeOut = m_textIsStrikeOut;
-        txtItem->hAlign = m_textHAlign;
-        txtItem->vAlign = m_textVAlign;
-        txtItem->opacity = m_textOpacity;
-        txtItem->lineSpacing = m_textLineSpacing;
-        txtItem->outlineColor = m_textOutlineColor;
-        txtItem->shadow = m_textShadow;
-        txtItem->outlineWidth = m_textOutlineWidth;
+        txtItem->color = m_toolContext.color;
+        txtItem->fontFamily = m_toolContext.fontFamily;
+        txtItem->fontSize = m_toolContext.fontSize;
+        txtItem->isBold = m_toolContext.textIsBold;
+        txtItem->isItalic = m_toolContext.textIsItalic;
+        txtItem->isUnderline = m_toolContext.textIsUnderline;
+        txtItem->isStrikeOut = m_toolContext.textIsStrikeOut;
+        txtItem->hAlign = m_toolContext.textHAlign;
+        txtItem->vAlign = m_toolContext.textVAlign;
+        txtItem->opacity = m_toolContext.textOpacity;
+        txtItem->lineSpacing = m_toolContext.textLineSpacing;
+        txtItem->outlineColor = m_toolContext.textOutlineColor;
+        txtItem->shadow = m_toolContext.textShadow;
+        txtItem->outlineWidth = m_toolContext.textOutlineWidth;
         saveToHistory();
         m_annotations.push_back(txtItem);
         m_selectedItem = txtItem;
@@ -747,7 +544,71 @@ bool EditorCanvas::eventFilter(QObject* obj, QEvent* event) {
     return QWidget::eventFilter(obj, event);
 }
 
+
+void EditorCanvas::setTempItem(std::shared_ptr<AnnotationItem> item) {
+    m_tempItem = item;
+}
+
+void EditorCanvas::addAnnotation(std::shared_ptr<AnnotationItem> item) {
+    if (item) {
+        m_annotations.push_back(item);
+        m_selectedItem = item;
+        m_selectedItem->isSelected = true;
+        emit itemSelected(m_selectedItem);
+        updateAutoCanvasSize();
+        update();
+        emit historyChanged();
+    }
+}
+
+void EditorCanvas::showTextInput(const QPoint& pos, const QString& text) {
+    m_startPoint = pos; // ensure commit uses correct corner
+    m_editingTextObj = nullptr;
+    
+    // Default box for empty text
+    int box_w = qMax(static_cast<int>(m_toolContext.fontSize * 1.5), 250);
+    int box_h = static_cast<int>(m_toolContext.fontSize * 1.5);
+    
+    m_textInput->setText(text);
+    
+    QPoint screenPos = QPoint(pos.x() * m_zoomFactor, pos.y() * m_zoomFactor);
+    m_textInput->setGeometry(screenPos.x(), screenPos.y(), qMax(100, static_cast<int>(box_w * m_zoomFactor)), qMax(40, static_cast<int>(box_h * m_zoomFactor)));
+    m_textInput->show();
+    m_textInput->setFocus();
+    update();
+}
+
+void EditorCanvas::commitTextSlot() {
+    commitText();
+}
+
+void EditorCanvas::setDrawing(bool drawing) {
+    m_isDrawing = drawing;
+}
+
+void EditorCanvas::setDragging(bool dragging) {
+    m_isDragging = dragging;
+}
+
+void EditorCanvas::setSelectedItem(std::shared_ptr<AnnotationItem> item) {
+    if (m_selectedItem) m_selectedItem->isSelected = false;
+    m_selectedItem = item;
+    if (m_selectedItem) m_selectedItem->isSelected = true;
+    emit itemSelected(m_selectedItem);
+    update();
+}
+
+void EditorCanvas::updateCanvas() {
+    update();
+}
+
+QPoint EditorCanvas::mapToImage(const QPoint& viewPos) const {
+    return QPoint(viewPos.x() / m_zoomFactor, viewPos.y() / m_zoomFactor);
+}
+
 void EditorCanvas::mousePressEvent(QMouseEvent* event) {
+    // If a tool handler decides to consume the event, let it.
+    // However, crop and canvas resize take precedence.
     if (event->button() != Qt::LeftButton) return;
 
     if (m_textInput->isVisible()) {
@@ -854,62 +715,20 @@ void EditorCanvas::mousePressEvent(QMouseEvent* event) {
         return;
     }
 
-    m_isDrawing = true;
-
-    if (m_currentTool == ToolType::Arrow) {
-        auto arrow = std::make_shared<ArrowAnnotation>(m_startPoint, m_currentPoint);
-        arrow->color = m_currentColor;
-        arrow->lineWidth = m_currentLineWidth;
-        arrow->arrowType = m_arrowType;
-        arrow->startStyle = m_arrowStartStyle;
-        arrow->endStyle = m_arrowEndStyle;
-        arrow->lineStyle = m_arrowLineStyle;
-        arrow->opacity = m_arrowOpacity;
-        arrow->startSize = m_arrowStartSize;
-        arrow->endSize = m_arrowEndSize;
-        arrow->shadow = m_arrowShadow;
-        m_tempItem = arrow;
-    } else if (m_currentTool == ToolType::Rectangle || m_currentTool == ToolType::Ellipse) {
-        auto shape = std::make_shared<ShapeAnnotation>(m_currentTool, QRect(m_startPoint, m_currentPoint));
-        shape->color = m_currentColor;
-        shape->lineWidth = m_currentLineWidth;
-        shape->shapeStyle = m_shapeStyle;
-        shape->lineStyle = m_lineStyle;
-        m_tempItem = shape;
-    } else if (m_currentTool == ToolType::Freehand) {
-        auto freehand = std::make_shared<FreehandAnnotation>();
-        freehand->color = m_currentColor;
-        freehand->lineWidth = m_currentLineWidth;
-        freehand->penStyle = m_penStyle;
-        freehand->addPoint(m_startPoint);
-        m_tempItem = freehand;
-    } else if (m_currentTool == ToolType::StepMarker) {
-        saveToHistory();
-        auto step = std::make_shared<StepMarkerAnnotation>(m_startPoint, m_nextStepNumber);
-        step->color = m_currentColor;
-        step->radius = m_currentLineWidth * 4; // Use line width as size base
-        m_annotations.push_back(step);
-        m_nextStepNumber++;
-        m_isDrawing = false;
-        update();
-        emit historyChanged();
-    } else if (m_currentTool == ToolType::Text) {
-        // Just let it drag, painted directly in paintEvent
-    } else if (m_currentTool == ToolType::Mosaic || m_currentTool == ToolType::Blur) {
-        auto shader = std::make_shared<ShaderAnnotation>(m_blurType, QRect(m_startPoint, m_currentPoint));
-        shader->intensity = m_blurIntensity;
-        m_tempItem = shader;
-    } else if (m_currentTool == ToolType::Highlight) {
-        auto highlight = std::make_shared<HighlightAnnotation>(QRect(m_startPoint, m_currentPoint));
-        highlight->color = QColor(255, 235, 59); // Yellow
-        m_tempItem = highlight;
+    // Delegate drawing logic to the current tool handler
+    if (m_currentToolHandler) {
+        m_currentToolHandler->mousePressEvent(event, this, m_toolContext);
     }
-    update();
 }
 
 void EditorCanvas::mouseMoveEvent(QMouseEvent* event) {
     m_currentPoint = mapToImage(event->pos());
     emit mousePositionChanged(m_currentPoint);
+
+    if (m_currentPolygon) {
+        m_currentPolygon->points.back() = m_currentPoint;
+        update();
+    }
 
     if (event->buttons() == Qt::NoButton) {
         if (m_isCroppingMode && m_cropRect.isValid()) {
@@ -1042,26 +861,8 @@ void EditorCanvas::mouseMoveEvent(QMouseEvent* event) {
         }
     }
 
-    if (m_isDrawing) {
-        if (m_tempItem) {
-            if (m_currentTool == ToolType::Arrow) {
-                auto arrow = std::dynamic_pointer_cast<ArrowAnnotation>(m_tempItem);
-                if (arrow) arrow->endPoint = m_currentPoint;
-            } else if (m_currentTool == ToolType::Rectangle || m_currentTool == ToolType::Ellipse) {
-                auto shape = std::dynamic_pointer_cast<ShapeAnnotation>(m_tempItem);
-                if (shape) shape->rect = QRect(m_startPoint, m_currentPoint).normalized();
-            } else if (m_currentTool == ToolType::Freehand) {
-                auto freehand = std::dynamic_pointer_cast<FreehandAnnotation>(m_tempItem);
-                if (freehand) freehand->addPoint(m_currentPoint);
-            } else if (m_currentTool == ToolType::Mosaic || m_currentTool == ToolType::Blur) {
-                auto shader = std::dynamic_pointer_cast<ShaderAnnotation>(m_tempItem);
-                if (shader) shader->rect = QRect(m_startPoint, m_currentPoint).normalized();
-            } else if (m_currentTool == ToolType::Highlight) {
-                auto highlight = std::dynamic_pointer_cast<HighlightAnnotation>(m_tempItem);
-                if (highlight) highlight->rect = QRect(m_startPoint, m_currentPoint).normalized();
-            }
-        }
-        update();
+    if (m_isDrawing && m_currentToolHandler) {
+        m_currentToolHandler->mouseMoveEvent(event, this, m_toolContext);
     }
 }
 
@@ -1096,62 +897,17 @@ void EditorCanvas::mouseReleaseEvent(QMouseEvent* event) {
             m_activeHandle = -1;
             updateAutoCanvasSize();
             emit historyChanged();
-        } else if (m_isDrawing) {
-            m_isDrawing = false;
-            if (m_currentTool == ToolType::Text) {
-                QRect rect = QRect(m_startPoint, m_currentPoint).normalized();
-                
-                int box_w = rect.width();
-                int box_h = rect.height();
-                QPoint topLeft;
-                int size = m_fontSize;
-                
-                if (box_w < 15 || box_h < 15) {
-                    box_w = qMax(static_cast<int>(m_fontSize * 1.5), 250);
-                    box_h = static_cast<int>(m_fontSize * 1.5);
-                    topLeft = m_startPoint;
-                } else {
-                    topLeft = rect.topLeft();
-                    size = qMax(10, qMin(200, static_cast<int>(box_h * 0.75)));
-                    if (size != m_fontSize) {
-                        m_fontSize = size;
-                        emit fontSizeChanged(size);
-                    }
-                }
-                
-                m_startPoint = topLeft; // Ensure commitText uses the correct corner
-                
-                m_editingTextObj = nullptr;
-                QFont font(m_fontFamily, qMax(8, static_cast<int>(size * m_zoomFactor)), QFont::Bold);
-                m_textInput->setFont(font);
-                m_textInput->setStyleSheet(QString("QTextEdit { color: %1; background: rgba(0,0,0,180); border: 1px dashed %1; padding: 2px; }").arg(m_currentColor.name()));
-                m_textInput->setText("");
-                
-                int min_char_w = qMax(16, static_cast<int>(size * 0.5));
-                box_w = qMax(min_char_w, box_w);
-                
-                QPoint screenPos = QPoint(topLeft.x() * m_zoomFactor, topLeft.y() * m_zoomFactor);
-                m_textInput->setGeometry(screenPos.x(), screenPos.y(), qMax(100, static_cast<int>(box_w * m_zoomFactor)), qMax(40, static_cast<int>(box_h * m_zoomFactor)));
-                m_textInput->show();
-                m_textInput->setFocus();
-                
-                update();
-            } else if (m_tempItem) {
-                saveToHistory();
-                m_tempItem->isSelected = true;
-                m_selectedItem = m_tempItem;
-                m_annotations.push_back(m_tempItem);
-                m_tempItem.reset();
-                emit itemSelected(m_selectedItem);
-                updateAutoCanvasSize();
-                update();
-                emit historyChanged();
-            }
+        } else if (m_isDrawing && m_currentToolHandler) {
+            m_currentToolHandler->mouseReleaseEvent(event, this, m_toolContext);
         }
     }
 }
 
 void EditorCanvas::mouseDoubleClickEvent(QMouseEvent* event) {
+    if (m_currentToolHandler) {
+        m_currentToolHandler->mouseDoubleClickEvent(event, this, m_toolContext);
+    }
+
     if (event->button() == Qt::LeftButton && m_currentTool == ToolType::None) {
         QPoint pt = mapToImage(event->pos());
         for (auto it = m_annotations.rbegin(); it != m_annotations.rend(); ++it) {
