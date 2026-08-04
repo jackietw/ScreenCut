@@ -211,8 +211,8 @@ void EditorMainWindow::initUI() {
     });
     connect(m_propsPanel, &EditorPropsPanel::lineStyleChanged, this, [this](const QString& val){ 
         m_canvas->getToolContext().lineStyle = val; 
-        if(auto i = std::dynamic_pointer_cast<ShapeAnnotation>(m_canvas->getSelectedItem())) { i->lineStyle = val; }
-        else if(auto i = std::dynamic_pointer_cast<PolygonAnnotation>(m_canvas->getSelectedItem())) { i->lineStyle = val; }
+        if(auto s = std::dynamic_pointer_cast<ShapeAnnotation>(m_canvas->getSelectedItem())) { s->lineStyle = val; }
+        else if(auto p = std::dynamic_pointer_cast<PolygonAnnotation>(m_canvas->getSelectedItem())) { p->lineStyle = val; }
         m_canvas->updateCanvas();
     });
     // Text

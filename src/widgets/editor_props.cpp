@@ -27,7 +27,34 @@ namespace {
     void updateOutlineIcon(QPushButton* btn, const QColor& c) {
         if (!btn) return;
         
-        btn->setStyleSheet("border: 1px solid #94a3b8; border-radius: 4px; background-color: #334155; padding: 2px;"); // Base panel background
+        btn->setStyleSheet("border: none; border-radius: 4px; background-color: #323842;");
+        
+        if (c == Qt::transparent) {
+            QString svg = ScreenCut::SVG_TRANSPARENT;
+            svg.replace("#ff0000", "#FFFFFF", Qt::CaseInsensitive);
+            btn->setIcon(ScreenCut::createSvgIcon(svg, 24, 24));
+            btn->setIconSize(QSize(24, 24));
+            return;
+        }
+        
+        QPixmap pixmap(32, 32);
+        pixmap.fill(Qt::transparent);
+        QPainter p(&pixmap);
+        p.setRenderHint(QPainter::Antialiasing);
+        
+        QPen pen(c, 4);
+        pen.setJoinStyle(Qt::MiterJoin);
+        p.setPen(pen);
+        p.drawRect(6, 6, 20, 20);
+        
+        btn->setIcon(QIcon(pixmap));
+        btn->setIconSize(QSize(32, 32));
+    }
+
+    void updateFillIcon(QPushButton* btn, const QColor& c) {
+        if (!btn) return;
+        
+        btn->setStyleSheet("border: none; border-radius: 4px; background-color: #323842;");
         
         if (c == Qt::transparent) {
             QString svg = ScreenCut::SVG_TRANSPARENT;
@@ -41,43 +68,7 @@ namespace {
         pixmap.fill(Qt::transparent);
         QPainter p(&pixmap);
         
-        // Outer white frame (1px)
-        p.fillRect(2, 2, 28, 28, Qt::white);
-        
-        // Color middle
-        p.fillRect(3, 3, 26, 26, c);
-        
-        // Inner white frame (1px)
-        p.fillRect(7, 7, 18, 18, Qt::white);
-        
-        // Inner transparent
-        p.setCompositionMode(QPainter::CompositionMode_Clear);
-        p.fillRect(8, 8, 16, 16, Qt::transparent);
-        p.setCompositionMode(QPainter::CompositionMode_SourceOver);
-        
-        btn->setIcon(QIcon(pixmap));
-        btn->setIconSize(QSize(32, 32));
-    }
-
-    void updateFillIcon(QPushButton* btn, const QColor& c) {
-        if (!btn) return;
-        
-        btn->setStyleSheet("border: 1px solid #94a3b8; border-radius: 4px; background-color: #334155; padding: 2px;"); // Base panel background
-        
-        if (c == Qt::transparent) {
-            btn->setIcon(QIcon()); // Just show the base background if transparent
-            return;
-        }
-        
-        QPixmap pixmap(32, 32);
-        pixmap.fill(Qt::transparent);
-        QPainter p(&pixmap);
-        
-        // Outer white frame (1px)
-        p.fillRect(2, 2, 28, 28, Qt::white);
-        
-        // Color middle (solid fill)
-        p.fillRect(3, 3, 26, 26, c);
+        p.fillRect(4, 4, 24, 24, c);
         
         btn->setIcon(QIcon(pixmap));
         btn->setIconSize(QSize(32, 32));
@@ -108,11 +99,11 @@ QWidget* EditorPropsPanel::createPickerButton(const QString& title, QPushButton*
     QLabel* label = new QLabel(title);
     label->setAlignment(Qt::AlignCenter);
     label->setFixedHeight(20);
-    label->setStyleSheet("font-weight: normal; color: #ccc; padding: 0px; margin: 0px;");
+    label->setStyleSheet("font-size: 11px; font-weight: normal; color: #ccc; padding: 0px; margin: 0px;");
     btn = new QPushButton();
     btn->setFixedSize(40, 40);
     // Base style before icon updates
-    btn->setStyleSheet("border: 1px solid #94a3b8; border-radius: 4px; background-color: #334155; padding: 2px;");
+    btn->setStyleSheet("border: none; border-radius: 4px; background-color: #323842;");
     l->addWidget(label);
     l->addWidget(btn, 0, Qt::AlignCenter);
     return w;
@@ -524,7 +515,7 @@ void EditorPropsPanel::createShapeProps() {
     QLabel* shapeLabel = new QLabel("Shape");
     shapeLabel->setAlignment(Qt::AlignCenter);
     shapeLabel->setFixedHeight(20);
-    shapeLabel->setStyleSheet("font-weight: normal; color: #ccc; padding: 0px; margin: 0px;");
+    shapeLabel->setStyleSheet("font-size: 11px; font-weight: normal; color: #ccc; padding: 0px; margin: 0px;");
     shapeL->addWidget(shapeLabel);
     
     m_shapeStyleCombo = new QComboBox();
@@ -537,7 +528,7 @@ void EditorPropsPanel::createShapeProps() {
     m_shapeStyleCombo->addItem(ScreenCut::createSvgIcon(ScreenCut::SVG_POLYGON, 32, 32), "", "Polygon");
     
     // Apply styling to hide the text and only show icon in the combobox box (hide the drop-down arrow in normal state if we want, but default is fine)
-    m_shapeStyleCombo->setStyleSheet("QComboBox { border: 1px solid #444; border-radius: 4px; background-color: #2b2b2b; padding: 2px; } QComboBox::drop-down { border: 0px; width: 0px; } QComboBox::down-arrow { image: none; } QComboBox QAbstractItemView { icon-size: 32px 32px; }");
+    m_shapeStyleCombo->setStyleSheet("QComboBox { border: none; border-radius: 4px; background-color: #323842; padding: 2px; } QComboBox::drop-down { border: 0px; width: 0px; } QComboBox::down-arrow { image: none; } QComboBox QAbstractItemView { icon-size: 32px 32px; }");
     
     connect(m_shapeStyleCombo, &QComboBox::currentIndexChanged, this, [this](int /*index*/) {
         emit shapeStyleChanged(m_shapeStyleCombo->currentData().toString());

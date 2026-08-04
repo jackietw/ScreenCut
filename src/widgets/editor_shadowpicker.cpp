@@ -16,6 +16,8 @@
 #include <QWidgetAction>
 #include <QIntValidator>
 #include <QPushButton>
+#include <QPainter>
+#include <QMouseEvent>
 
 namespace ScreenCut {
 
@@ -27,82 +29,8 @@ ShadowGridWidget::ShadowGridWidget(QWidget* parent) : QWidget(parent) {
 }
 
 void ShadowGridWidget::setupUI() {
-    QVBoxLayout* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(0, 0, 0, 0);
-
-    QFrame* container = new QFrame(this);
-    container->setStyleSheet(
-        "QFrame {"
-        "  background-color: #334155;"
-        "  border: 1px solid #94a3b8;"
-        "  border-radius: 4px;"
-        "}"
-    );
-
-    QGridLayout* layout = new QGridLayout(container);
-    layout->setContentsMargins(1, 1, 1, 1);
-    layout->setSpacing(1);
-    
-    QString baseBtnStyle = 
-        "QPushButton {"
-        "  background-color: #3b3b3b;"
-        "  border: none;"
-        "  color: #fff;"
-        "  font-size: 10px;"
-        "  font-weight: bold;"
-        "  padding: 0px;"
-        "}"
-        "QPushButton:hover {"
-        "  background-color: #4b4b4b;"
-        "}"
-        "QPushButton:checked {"
-        "  background-color: #1a73e8;"
-        "}";
-
-    // Create 3x3 grid
-    for (int i = 0; i < 9; ++i) {
-        QPushButton* btn = new QPushButton(container);
-        btn->setFixedSize(12, 12);
-        btn->setCheckable(true);
-        
-        QString cornerStyle = "border-radius: 0px;";
-        if (i == 0) cornerStyle = "border-top-left-radius: 5px;";
-        else if (i == 2) cornerStyle = "border-top-right-radius: 5px;";
-        else if (i == 6) cornerStyle = "border-bottom-left-radius: 5px;";
-        else if (i == 8) cornerStyle = "border-bottom-right-radius: 5px;";
-        
-        btn->setStyleSheet(baseBtnStyle + "QPushButton { " + cornerStyle + " }");
-        
-        layout->addWidget(btn, i / 3, i % 3);
-        m_cells[i] = btn;
-        
-        connect(btn, &QPushButton::clicked, this, [this, i]() {
-            if (m_updating) return;
-            
-            // Map cell to angle
-            // 0 1 2   TopLeft(225) Top(270) TopRight(315)
-            // 3 4 5   Left(180)    None     Right(0)
-            // 6 7 8   BotLeft(135) Bot(90)  BotRight(45)
-            
-            if (i == 4) { // Center
-                m_style.enabled = false;
-            } else {
-                m_style.enabled = true;
-                if (i == 0) m_style.angle = 225;
-                else if (i == 1) m_style.angle = 270;
-                else if (i == 2) m_style.angle = 315;
-                else if (i == 3) m_style.angle = 180;
-                else if (i == 5) m_style.angle = 0;
-                else if (i == 6) m_style.angle = 135;
-                else if (i == 7) m_style.angle = 90;
-                else if (i == 8) m_style.angle = 45;
-            }
-            
-            updateGridUI();
-            emit shadowStyleChanged(m_style);
-        });
-    }
-    mainLayout->addWidget(container);
+    setFixedSize(40, 40);
+    setCursor(Qt::PointingHandCursor);
 }
 
 void ShadowGridWidget::setShadowStyle(const ShadowStyle& style) {
@@ -116,29 +44,104 @@ ShadowStyle ShadowGridWidget::shadowStyle() const {
 
 void ShadowGridWidget::updateGridUI() {
     m_updating = true;
-    int activeIndex = 4; // Center by default
+    m_activeIndex = 4; // Center by default
     
     if (m_style.enabled) {
-        // Find closest preset angle
         int a = m_style.angle % 360;
         if (a < 0) a += 360;
         
-        // Map back to cell
-        if (a >= 202 && a < 247) activeIndex = 0;
-        else if (a >= 247 && a < 292) activeIndex = 1;
-        else if (a >= 292 && a < 337) activeIndex = 2;
-        else if (a >= 157 && a < 202) activeIndex = 3;
-        else if (a >= 337 || a < 22) activeIndex = 5;
-        else if (a >= 112 && a < 157) activeIndex = 6;
-        else if (a >= 67 && a < 112) activeIndex = 7;
-        else if (a >= 22 && a < 67) activeIndex = 8;
+        if (a >= 202 && a < 247) m_activeIndex = 0;
+        else if (a >= 247 && a < 292) m_activeIndex = 1;
+        else if (a >= 292 && a < 337) m_activeIndex = 2;
+        else if (a >= 157 && a < 202) m_activeIndex = 3;
+        else if (a >= 337 || a < 22) m_activeIndex = 5;
+        else if (a >= 112 && a < 157) m_activeIndex = 6;
+        else if (a >= 67 && a < 112) m_activeIndex = 7;
+        else if (a >= 22 && a < 67) m_activeIndex = 8;
     }
     
-    for (int i = 0; i < 9; ++i) {
-        m_cells[i]->setChecked(i == activeIndex);
-        m_cells[i]->setText((i == activeIndex && i != 4) ? "✓" : "");
-    }
     m_updating = false;
+    update(); // trigger repaint
+}
+
+int ShadowGridWidget::cellAtPos(const QPoint& pos) const {
+    // Layout: padding=3, cellSize=10, gap=2, step=12
+    // 3 + 10 + 2 + 10 + 2 + 10 + 3 = 40
+    const int pad = 3;
+    const int cellSize = 10;
+    const int gap = 2;
+    const int step = cellSize + gap; // 12
+    
+    int lx = pos.x() - pad;
+    int ly = pos.y() - pad;
+    
+    if (lx < 0 || ly < 0 || lx >= 34 || ly >= 34) return -1;
+    
+    int col = lx / step;
+    int row = ly / step;
+    
+    if (lx % step >= cellSize) return -1;
+    if (ly % step >= cellSize) return -1;
+    
+    if (col < 0 || col > 2 || row < 0 || row > 2) return -1;
+    return row * 3 + col;
+}
+
+void ShadowGridWidget::paintEvent(QPaintEvent* /*event*/) {
+    QPainter p(this);
+    p.setRenderHint(QPainter::Antialiasing, false);
+    
+    // Draw rounded background
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor("#323842"));
+    p.setRenderHint(QPainter::Antialiasing, true);
+    p.drawRoundedRect(rect(), 4, 4);
+    p.setRenderHint(QPainter::Antialiasing, false);
+    
+    // Draw 3x3 cells: pad=3, cellSize=10, gap=2, step=12
+    const int pad = 3;
+    const int cellSize = 10;
+    const int step = 12;
+    
+    for (int i = 0; i < 9; ++i) {
+        int row = i / 3;
+        int col = i % 3;
+        int x = pad + col * step;
+        int y = pad + row * step;
+        
+        QColor cellColor = (i == m_activeIndex) ? QColor("#1a73e8") : QColor("#49515d");
+        p.fillRect(x, y, cellSize, cellSize, cellColor);
+        
+        // Draw checkmark for active non-center cell
+        if (i == m_activeIndex && i != 4) {
+            p.setPen(QPen(Qt::white, 1));
+            p.drawLine(x + 2, y + 5, x + 4, y + 7);
+            p.drawLine(x + 4, y + 7, x + 7, y + 3);
+            p.setPen(Qt::NoPen);
+        }
+    }
+}
+
+void ShadowGridWidget::mousePressEvent(QMouseEvent* event) {
+    int idx = cellAtPos(event->pos());
+    if (idx < 0) return;
+    
+    if (idx == 4) {
+        m_style.enabled = false;
+    } else {
+        m_style.enabled = true;
+        if (idx == 0) m_style.angle = 225;
+        else if (idx == 1) m_style.angle = 270;
+        else if (idx == 2) m_style.angle = 315;
+        else if (idx == 3) m_style.angle = 180;
+        else if (idx == 5) m_style.angle = 0;
+        else if (idx == 6) m_style.angle = 135;
+        else if (idx == 7) m_style.angle = 90;
+        else if (idx == 8) m_style.angle = 45;
+    }
+    
+    updateGridUI();
+    emit shadowStyleChanged(m_style);
 }
 
 
@@ -320,7 +323,7 @@ void ShadowPropertyWidget::setupUI() {
     m_titleButton = new QPushButton("Shadow ▼", this);
     m_titleButton->setFlat(true);
     m_titleButton->setFixedHeight(20);
-    m_titleButton->setStyleSheet("QPushButton { color: #ccc; font-weight: normal; font-size: 13px; text-align: center; border: none; padding: 0px; margin: 0px; } QPushButton:hover { color: #fff; }");
+    m_titleButton->setStyleSheet("QPushButton { color: #ccc; font-weight: normal; font-size: 11px; text-align: center; border: none; padding: 0px; margin: 0px; } QPushButton:hover { color: #fff; }");
     layout->addWidget(m_titleButton, 0, Qt::AlignCenter);
     
     m_grid = new ShadowGridWidget(this);

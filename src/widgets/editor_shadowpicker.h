@@ -30,12 +30,17 @@ public:
 signals:
     void shadowStyleChanged(const ShadowStyle& style);
 
+protected:
+    void paintEvent(QPaintEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+
 private:
     void setupUI();
     void updateGridUI();
+    int cellAtPos(const QPoint& pos) const;
     
     ShadowStyle m_style;
-    QPushButton* m_cells[9];
+    int m_activeIndex = 4; // center = no shadow
     bool m_updating = false;
 };
 
