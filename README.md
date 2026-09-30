@@ -3,7 +3,7 @@
 [![License: LGPL v2.1](https://img.shields.io/badge/License-LGPL_v2.1-blue.svg)](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html)
 [![C++ Standard](https://img.shields.io/badge/C%2B%2B-17%2F20-blue.svg)](https://isocpp.org/)
 [![Framework: Qt 6](https://img.shields.io/badge/GUI-Qt%206%20(Native)-green.svg)](https://www.qt.io/)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)]
+![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)
 
 > [!IMPORTANT]
 > **【Next-Gen Architecture: Native C++ / Qt 6 High-Performance Engine】**
@@ -92,6 +92,10 @@ ScreenCut/
   * Required components: `Core`, `Gui`, `Widgets`, `Multimedia`, `Network`, and `Svg`
   * Automatically deploys runtime dependencies via `windeployqt` (Windows) or `macdeployqt` (macOS App Bundle).
   * **Note**: By default, `CMakeLists.txt` looks for Qt 6.11.2 in standard paths (`C:/Qt/6.11.2/msvc2022_64` on Windows, `~/Qt/6.11.2/macos` on macOS). If your installation path differs, simply update the `# --- Custom Path Configurations ---` section at the top of `CMakeLists.txt`.
+* **FFmpeg** (Runtime Requirement for Video Recording):
+  * ScreenCut requires an external `ffmpeg` executable in the system `PATH` or the application directory to perform hardware-accelerated video recording (H.264/MP4).
+  * **macOS**: `brew install ffmpeg`
+  * **Windows**: Download `ffmpeg.exe` and add it to your `PATH`, or place it in the same directory as `ScreenCut.exe`.
 
 ### Command-Line Build (CLI)
 
@@ -128,7 +132,8 @@ open ScreenCut.app              # Launch Capture Tray App (Editor is bundled ins
 
 ## License
 
-This project is open-sourced under the **GNU Lesser General Public License v2.1 or later (LGPL-2.1-or-later)**. See the [LICENSE](file:///LICENSE) file for full license terms.
+This project is open-sourced under the **GNU Lesser General Public License v2.1 or later (LGPL-2.1-or-later)**. See the [LICENSE](LICENSE) file for full license terms.
 
 ### Third-Party Licenses
 * **Qt 6**: This software dynamically links against the Qt 6 Framework, licensed under the **GNU Lesser General Public License v3.0 (LGPL-3.0)**. Qt is a registered trademark of The Qt Company Ltd.
+* **FFmpeg**: Video recording functionality utilizes FFmpeg (https://ffmpeg.org/), which is licensed under the **LGPLv2.1 / GPLv3** (depending on compilation flags). ScreenCut communicates with FFmpeg purely via external command-line process invocation (`QProcess` / standard I/O pipes) and does not statically or dynamically link against FFmpeg libraries. As such, ScreenCut constitutes a separate work and is not a derivative work of FFmpeg. Users must obtain or install FFmpeg independently, or comply with FFmpeg's distribution terms if packaging it alongside this application.
