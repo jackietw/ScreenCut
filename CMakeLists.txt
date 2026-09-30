@@ -29,11 +29,36 @@ if(APPLE)
     set(CMAKE_BUILD_RPATH "@executable_path/../Frameworks")
 endif()
 
-# Add Qt search path automatically if not specified
-if(WIN32 AND NOT DEFINED CMAKE_PREFIX_PATH AND NOT DEFINED Qt6_DIR)
-    list(APPEND CMAKE_PREFIX_PATH "C:/Qt/6.8.3/msvc2022_64" "C:/Qt/6.8.0/msvc2022_64")
-elseif(APPLE AND NOT DEFINED CMAKE_PREFIX_PATH AND NOT DEFINED Qt6_DIR)
-    list(APPEND CMAKE_PREFIX_PATH "$ENV{HOME}/Qt/6.8.3/macos" "$ENV{HOME}/Qt/6.8.1/macos" "$ENV{HOME}/Qt/6.8.0/macos" "$ENV{HOME}/Qt/6.7.2/macos" "/opt/homebrew/opt/qt" "/usr/local/opt/qt")
+# --- Custom Path Configurations ---
+# You can modify these paths to match your local installation if needed.
+set(CUSTOM_QT_WIN_PREFIX_PATHS
+    "C:/Qt/6.11.2/msvc2022_64"
+)
+set(CUSTOM_QT_MAC_PREFIX_PATHS
+    "$ENV{HOME}/Qt/6.11.2/macos"
+)
+
+set(CUSTOM_WINDEPLOYQT_HINTS
+    "C:/Qt/6.11.2/msvc2022_64/bin"
+    "${Qt6_DIR}/../../../bin"
+)
+
+set(CUSTOM_MACDEPLOYQT_HINTS
+    "$ENV{HOME}/Qt/6.11.2/macos/bin"
+    "${Qt6_DIR}/../../../bin"
+)
+
+set(CUSTOM_FFMPEG_HINTS
+    "/opt/homebrew/bin"           # Apple Silicon Homebrew
+    "/usr/local/bin"              # Intel x86 Homebrew / manual install
+)
+# ----------------------------------
+
+# Add Qt search path automatically
+if(WIN32)
+    list(APPEND CMAKE_PREFIX_PATH ${CUSTOM_QT_WIN_PREFIX_PATHS})
+elseif(APPLE)
+    list(APPEND CMAKE_PREFIX_PATH ${CUSTOM_QT_MAC_PREFIX_PATHS})
 endif()
 
 # Find Qt6 components
@@ -179,7 +204,7 @@ if(WIN32)
     endif()
     
     # Automatically deploy Qt DLLs and platform plugins after build (Windows MSVC)
-    find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "C:/Qt/6.8.1/msvc2022_64/bin" "C:/Qt/6.8.0/msvc2022_64/bin" "C:/Qt/6.7.2/msvc2022_64/bin" "${Qt6_DIR}/../../../bin")
+    find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS ${CUSTOM_WINDEPLOYQT_HINTS})
     if(WINDEPLOYQT_EXECUTABLE)
         if(FFMPEG_EXECUTABLE)
             add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
@@ -200,21 +225,12 @@ elseif(APPLE)
     # Automatically deploy Qt Frameworks and plugins for macOS application bundles (Apple Clang)
     # Hints cover: Qt Installer default, Apple Silicon Homebrew, Intel Homebrew, and fallback from Qt6_DIR
     find_program(MACDEPLOYQT_EXECUTABLE macdeployqt
-        HINTS
-            "$ENV{HOME}/Qt/6.8.1/macos/bin"
-            "$ENV{HOME}/Qt/6.8.0/macos/bin"
-            "$ENV{HOME}/Qt/6.7.2/macos/bin"
-            "/opt/homebrew/opt/qt/bin"    # Apple Silicon Homebrew
-            "/usr/local/opt/qt/bin"       # Intel x86 Homebrew
-            "/usr/local/opt/qt@6/bin"     # Intel x86 Homebrew (versioned)
-            "${Qt6_DIR}/../../../bin"
+        HINTS ${CUSTOM_MACDEPLOYQT_HINTS}
     )
     # FFmpeg: used at runtime for video recording (not linked at compile-time, spawned as subprocess)
     # Detect brew-installed ffmpeg for developers to verify PATH at configure time
     find_program(FFMPEG_EXECUTABLE ffmpeg
-        HINTS
-            "/opt/homebrew/bin"           # Apple Silicon Homebrew
-            "/usr/local/bin"              # Intel x86 Homebrew / manual install
+        HINTS ${CUSTOM_FFMPEG_HINTS}
     )
     if(FFMPEG_EXECUTABLE)
         message(STATUS "[ScreenCut] ffmpeg found at: ${FFMPEG_EXECUTABLE} (will be used at runtime for video recording)")
